@@ -1,14 +1,16 @@
 # Story of Alicia Launcher
 
-[![License](https://img.shields.io/github/license/Story-Of-Alicia/soa-launcher-qt?color=blue)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/Story-Of-Alicia/soa-launcher-qt?label=release&color=success)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/Story-Of-Alicia/soa-launcher-qt?label=release&color=success)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Story-Of-Alicia/soa-launcher-qt/total?color=orange)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)](#supported-platforms)
 [![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white)](https://www.qt.io/)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)](src/core/network)
+[![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)](src/core/network/)
 
 The official **Story of Alicia** launcher for Linux and macOS.
+
+![Launcher screenshot](/docs/soa-launcher-screenshot.png)
 
 > **AI development disclosure:** AI was used as a development tool alongside human direction, testing, review, and decision-making
 
@@ -44,7 +46,7 @@ The launcher is designed to work for regular players without requiring knowledge
 >
 > The DMG is a universal binary, so the launcher itself runs natively on both
 > Apple Silicon and Intel Macs. **However, it has only been tested on Apple
-> Silicon. Intel Macs have not been tested at all** - the build should run, but
+> Silicon. Intel Macs have not been tested at all** the build should run, but
 > nobody has confirmed it yet.
 >
 > Running the game on macOS also depends on Game Porting Toolkit, which is a
@@ -162,4 +164,4 @@ Licenses for the bundled fonts are in [`assets/fonts/`](assets/fonts). I'm still
 ## Acknowledgements
 
 - Thank you to the SOA development team for the assets and the great help.
-- Thank you Katsu for the beautiful custom art peace in the launcher and testing work.
+- Thank you Katsu for the beautiful custom art piece in the launcher and testing work.
