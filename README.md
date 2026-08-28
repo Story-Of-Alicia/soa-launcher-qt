@@ -115,7 +115,9 @@ brew install winetricks
 **3. Install Game Porting Toolkit.** Use the
 [distribution maintained by Gcenx](https://github.com/Gcenx/game-porting-toolkit/releases).
 This runtime is what actually runs Alicia on macOS, and it is not bundled with
-the launcher, so it has to be installed separately.
+the launcher, so it has to be installed separately. 
+
+Double clicking the tar.xz opens it with Archive Utility which extracts the app. Afterwards drag the application to /Applications for runtime auto-detection in the launcher. The app can potentially be blocked from running due to macOS complaining that it can't verify that it's not harmful; go to privacy settings, scroll down and then select ''run anyway''.
 
 Follow the requirements and installation notes for the specific Game Porting Toolkit release you download.
 
@@ -124,17 +126,19 @@ Follow the requirements and installation notes for the specific Game Porting Too
 ### Linux
 
 1. Download the AppImage.
-2. Allow it to run:
+2. Allow it to run via the terminal:
 
    ```sh
-   chmod +x Story_Of_Alicia-x86_64.AppImage
+   chmod +x <path to Story_Of_Alicia-<version>-x86_64.appimage>
    ```
+You can drag the appimage in the terminal, it'll put the full path in automatically.
 
-3. Open it:
+3. Open it via the terminal:
 
    ```sh
-   ./Story_Of_Alicia-x86_64.AppImage
+   <path to Story_Of_Alicia-<version>-x86_64.appimage>
    ```
+Or double click the appimage
 
 Linux users can choose between Wine, Proton through UMU, or a custom runtime from the launcher.
 
