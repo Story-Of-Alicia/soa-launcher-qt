@@ -2,26 +2,37 @@
 
 #include <QProcess>
 #include <QRegularExpression>
+#include <QtGlobal>
+
+#include <utility>
 
 namespace util::launch_arguments
 {
     namespace
     {
-        bool is_reserved(const QString& argument)
+        enum class ReservedArgument
+        {
+            None,
+            Operation,
+            Id,
+            GameId
+        };
+
+        ReservedArgument reserved_argument(const QString& argument)
         {
             const QString normalized = argument.trimmed();
-            for (const QString& name : {
-                     QStringLiteral("-OP"),
-                     QStringLiteral("-ID"),
-                     QStringLiteral("-GameID")})
+            for (const auto& [name, kind] : {
+                     std::pair {QStringLiteral("-OP"), ReservedArgument::Operation},
+                     std::pair {QStringLiteral("-ID"), ReservedArgument::Id},
+                     std::pair {QStringLiteral("-GameID"), ReservedArgument::GameId}})
             {
                 if (normalized.compare(name, Qt::CaseInsensitive) == 0
                     || normalized.startsWith(name + QLatin1Char('='), Qt::CaseInsensitive))
                 {
-                    return true;
+                    return kind;
                 }
             }
-            return false;
+            return ReservedArgument::None;
         }
 
         bool is_environment_assignment(const QString& argument)
@@ -31,6 +42,25 @@ namespace util::launch_arguments
             const int equals = argument.indexOf(QLatin1Char('='));
             return equals > 0 && key_pattern.match(argument.left(equals)).hasMatch();
         }
+
+        bool invalid_argument(const QString& argument)
+        {
+            static const QRegularExpression control_characters(
+                QStringLiteral("[\\x00-\\x1F\\x7F]"));
+            return argument.size() > 1024 || control_characters.match(argument).hasMatch();
+        }
+
+        QString inline_value(const QString& argument)
+        {
+            const int equals = argument.indexOf(QLatin1Char('='));
+            return equals >= 0 ? argument.mid(equals + 1) : QString {};
+        }
+    }
+
+    bool developer_mode_enabled()
+    {
+        const QString value = qEnvironmentVariable("DEVELOPER_MODE").trimmed().toLower();
+        return value == QStringLiteral("on") || value == QStringLiteral("true");
     }
 
     ValidationResult validate(const QString& raw)
@@ -49,20 +79,61 @@ namespace util::launch_arguments
             return result;
         }
 
-        static const QRegularExpression controlCharacters(QStringLiteral("[\\x00-\\x1F\\x7F]"));
-        for (const QString& argument : tokens)
+        const bool developer_mode = developer_mode_enabled();
+        for (qsizetype index = 0; index < tokens.size(); ++index)
         {
-            if (argument.size() > 1024 || controlCharacters.match(argument).hasMatch())
+            const QString& argument = tokens[index];
+            if (invalid_argument(argument))
             {
                 result.error = QStringLiteral("A game launch argument is invalid or too long.");
                 return result;
             }
-            if (is_reserved(argument))
+
+            const ReservedArgument reserved = reserved_argument(argument);
+            if (reserved != ReservedArgument::None)
             {
-                result.error = QStringLiteral(
-                    "-OP, -ID, and -GameID are managed by the launcher and cannot be overridden.");
-                return result;
+                if (!developer_mode || reserved == ReservedArgument::GameId)
+                {
+                    result.error = developer_mode
+                        ? QStringLiteral("-GameID is managed by the launcher and cannot be overridden.")
+                        : QStringLiteral(
+                              "-OP, -ID, and -GameID are managed by the launcher and cannot be overridden.");
+                    return result;
+                }
+
+                const QString normalized = argument.trimmed();
+                QString value = inline_value(normalized);
+                if (!normalized.contains(QLatin1Char('=')))
+                {
+                    if (++index >= tokens.size() || invalid_argument(tokens[index])
+                        || reserved_argument(tokens[index]) != ReservedArgument::None)
+                    {
+                        result.error = QStringLiteral(
+                            "Developer mode requires a value after -ID and -OP.");
+                        return result;
+                    }
+                    value = tokens[index];
+                }
+                if (value.isEmpty())
+                {
+                    result.error = QStringLiteral(
+                        "Developer mode requires a value after -ID and -OP.");
+                    return result;
+                }
+
+                QString* destination = reserved == ReservedArgument::Id
+                    ? &result.developer_id
+                    : &result.developer_op;
+                if (!destination->isEmpty())
+                {
+                    result.error = QStringLiteral(
+                        "Developer mode accepts only one -ID and one -OP argument.");
+                    return result;
+                }
+                *destination = value;
+                continue;
             }
+
             if (is_environment_assignment(argument))
             {
                 result.environment_entries.append(argument);

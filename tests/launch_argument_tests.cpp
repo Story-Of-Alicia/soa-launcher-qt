@@ -25,6 +25,16 @@ class LaunchArgumentTests final : public QObject
     Q_OBJECT
 
 private slots:
+    void init()
+    {
+        qunsetenv("DEVELOPER_MODE");
+    }
+
+    void cleanup()
+    {
+        qunsetenv("DEVELOPER_MODE");
+    }
+
     void game_phase_transition_graph_is_explicit()
     {
         using core::wine::GamePhase;
@@ -82,6 +92,62 @@ private slots:
             QVERIFY(!result.valid);
             QVERIFY(!result.error.isEmpty());
         }
+    }
+
+    void accepts_developer_mode_values()
+    {
+        for (const QByteArray& value : {QByteArrayLiteral("on"), QByteArrayLiteral("TRUE")})
+        {
+            qputenv("DEVELOPER_MODE", value);
+            QVERIFY(util::launch_arguments::developer_mode_enabled());
+        }
+
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("1"));
+        QVERIFY(!util::launch_arguments::developer_mode_enabled());
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("false"));
+        QVERIFY(!util::launch_arguments::developer_mode_enabled());
+    }
+
+    void accepts_developer_credentials_only_in_developer_mode()
+    {
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("true"));
+        const auto result = util::launch_arguments::validate(
+            QStringLiteral("-ID [local-user] -OP [local-password] -windowed"));
+
+        QVERIFY(result.valid);
+        QCOMPARE(result.developer_id, QStringLiteral("[local-user]"));
+        QCOMPARE(result.developer_op, QStringLiteral("[local-password]"));
+        QCOMPARE(result.arguments, QStringList({QStringLiteral("-windowed")}));
+    }
+
+    void accepts_inline_developer_credentials()
+    {
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("ON"));
+        const auto result = util::launch_arguments::validate(
+            QStringLiteral("-ID=[local-user] -OP=[local-password]"));
+
+        QVERIFY(result.valid);
+        QCOMPARE(result.developer_id, QStringLiteral("[local-user]"));
+        QCOMPARE(result.developer_op, QStringLiteral("[local-password]"));
+    }
+
+    void developer_mode_still_rejects_game_id_override()
+    {
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("true"));
+        const auto result = util::launch_arguments::validate(QStringLiteral("-GameID 4"));
+
+        QVERIFY(!result.valid);
+        QVERIFY(result.error.contains(QStringLiteral("-GameID")));
+    }
+
+    void rejects_duplicate_developer_credentials()
+    {
+        qputenv("DEVELOPER_MODE", QByteArrayLiteral("true"));
+        const auto result = util::launch_arguments::validate(
+            QStringLiteral("-ID [one] -ID [two] -OP [password]"));
+
+        QVERIFY(!result.valid);
+        QVERIFY(!result.error.isEmpty());
     }
 
     void rejects_oversized_game_arguments()

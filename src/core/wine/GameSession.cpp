@@ -353,7 +353,8 @@ namespace core::wine
             }
             return;
         }
-        if (user.isEmpty() || token.isEmpty())
+        if ((user.isEmpty() || token.isEmpty())
+            && !util::launch_arguments::developer_mode_enabled())
         {
             if (callbacks_.fail_user)
             {
@@ -1668,7 +1669,13 @@ namespace core::wine
 #else
         const bool proton = runtime_.runtime_is_proton();
 #endif
-        const QString sensitive_token = launch_->token;
+        const bool developer_mode = util::launch_arguments::developer_mode_enabled();
+        const auto custom_arguments =
+            util::launch_arguments::validate(Config::instance().game_args());
+        const QString sensitive_token =
+            developer_mode && custom_arguments.valid && !custom_arguments.developer_op.isEmpty()
+                ? custom_arguments.developer_op
+                : launch_->token;
         const auto diagnostics_configuration = diagnostics_.begin(
             launch_->version, prefix, launch_->game_directory, launch_->executable_path,
             {sensitive_token},
@@ -1782,16 +1789,33 @@ namespace core::wine
         }
 
         QStringList game_arguments;
-        game_arguments << QStringLiteral("-GameID") << QString::fromLatin1(profile.launch_game_id)
-                       << QStringLiteral("-ID") << QStringLiteral("[%1]").arg(launch_->user)
-                       << QStringLiteral("-OP") << QStringLiteral("[%1]").arg(launch_->token);
-        const auto custom_arguments =
-            util::launch_arguments::validate(Config::instance().game_args());
+        game_arguments << QStringLiteral("-GameID")
+                       << (developer_mode
+                               ? QStringLiteral("2")
+                               : QString::fromLatin1(profile.launch_game_id));
         if (!custom_arguments.valid)
         {
             fail_game_launch(
                 QStringLiteral("Invalid launch arguments: %1").arg(custom_arguments.error));
             return;
+        }
+        if (developer_mode)
+        {
+            if (custom_arguments.developer_id.isEmpty() || custom_arguments.developer_op.isEmpty())
+            {
+                fail_game_launch(QStringLiteral(
+                    "Developer mode requires -ID and -OP in Game Launch Arguments."));
+                return;
+            }
+            game_arguments << QStringLiteral("-ID") << custom_arguments.developer_id
+                           << QStringLiteral("-OP") << custom_arguments.developer_op;
+            SPDLOG_INFO("Developer mode enabled: using GameID 2 with custom local credentials; "
+                        "aliciadev must resolve to the local server");
+        }
+        else
+        {
+            game_arguments << QStringLiteral("-ID") << QStringLiteral("[%1]").arg(launch_->user)
+                           << QStringLiteral("-OP") << QStringLiteral("[%1]").arg(launch_->token);
         }
         game_arguments.append(custom_arguments.arguments);
 

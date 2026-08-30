@@ -13,6 +13,7 @@
 #include "core/wine/RuntimeLocator.hpp"
 #include "core/wine/WineRegistry.hpp"
 #include "util/Config.hpp"
+#include "util/LaunchArguments.hpp"
 #include <spdlog/spdlog.h>
 
 namespace core::state
@@ -140,7 +141,7 @@ namespace core::state
         prefix_ready = inspection.exists && inspection.marker_valid
             && inspection.required_components_present(proton);
         game_installed = config.game_installed();
-        authed = config.has_auth();
+        authed = config.has_auth() || util::launch_arguments::developer_mode_enabled();
         probed = true;
 
         const QString key = current_update_key();

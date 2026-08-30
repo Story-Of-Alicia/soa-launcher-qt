@@ -11,6 +11,7 @@
 #include "util/Config.hpp"
 #include "util/Layout.hpp"
 #include "util/LanguageManager.hpp"
+#include "util/LaunchArguments.hpp"
 #include "util/ModalOverlay.hpp"
 #include "util/SimpleUtils.hpp"
 #include "widgets/AliciaChooser.hpp"
@@ -284,7 +285,7 @@ bool MainWindow::can_run_game_directly() const
         && install_state
         && install_state->stage() == Stage::Ready
         && !shell->is_busy()
-        && config.has_auth()
+        && (config.has_auth() || util::launch_arguments::developer_mode_enabled())
         && config.game_installed()
         && config.path_inside_prefix(config.game_install_path())
         && shell->is_wine_installed();

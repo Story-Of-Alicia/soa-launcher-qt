@@ -11,7 +11,10 @@ namespace util::launch_arguments
         QString error;
         QStringList arguments;
         QStringList environment_entries;
+        QString developer_id;
+        QString developer_op;
     };
 
+    [[nodiscard]] bool developer_mode_enabled();
     ValidationResult validate(const QString& raw);
 }
