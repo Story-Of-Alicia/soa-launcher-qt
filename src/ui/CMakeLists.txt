@@ -1,0 +1,73 @@
+add_library(soa_ui STATIC
+        AdvancedSettings.cpp
+        AliciaChooser.cpp
+        Assets.cpp
+        DownloadProgress.cpp
+        GameInstall.cpp
+        ImageDropdown.cpp
+        InstallState.cpp
+        LauncherDialog.cpp
+        LauncherInfoDialog.cpp
+        LauncherLog.cpp
+        LauncherSettings.cpp
+        LauncherUpdate.cpp
+        Layout.cpp
+        ModalOverlay.cpp
+        PrefixProgress.cpp
+        PrerequisitesIntro.cpp
+        ProgressBar.cpp
+        RepairFiles.cpp
+        RulesAgreement.cpp
+        Settings.cpp
+        SimpleUtils.cpp
+        ViewRouter.cpp
+        WineInstall.cpp
+        WineSelectMenu.cpp
+        WineSettings.cpp
+
+        ${SOA_INCLUDE_DIR}/ui/AdvancedSettings.hpp
+        ${SOA_INCLUDE_DIR}/ui/AliciaChooser.hpp
+        ${SOA_INCLUDE_DIR}/ui/Assets.hpp
+        ${SOA_INCLUDE_DIR}/ui/Colors.hpp
+        ${SOA_INCLUDE_DIR}/ui/DownloadProgress.hpp
+        ${SOA_INCLUDE_DIR}/ui/GameInstall.hpp
+        ${SOA_INCLUDE_DIR}/ui/ImageDropdown.hpp
+        ${SOA_INCLUDE_DIR}/ui/InstallState.hpp
+        ${SOA_INCLUDE_DIR}/ui/LauncherDialog.hpp
+        ${SOA_INCLUDE_DIR}/ui/LauncherInfoDialog.hpp
+        ${SOA_INCLUDE_DIR}/ui/LauncherLog.hpp
+        ${SOA_INCLUDE_DIR}/ui/LauncherSettings.hpp
+        ${SOA_INCLUDE_DIR}/ui/LauncherUpdate.hpp
+        ${SOA_INCLUDE_DIR}/ui/Layout.hpp
+        ${SOA_INCLUDE_DIR}/ui/ModalOverlay.hpp
+        ${SOA_INCLUDE_DIR}/ui/PrefixProgress.hpp
+        ${SOA_INCLUDE_DIR}/ui/PrerequisitesIntro.hpp
+        ${SOA_INCLUDE_DIR}/ui/ProgressBar.hpp
+        ${SOA_INCLUDE_DIR}/ui/RepairFiles.hpp
+        ${SOA_INCLUDE_DIR}/ui/RulesAgreement.hpp
+        ${SOA_INCLUDE_DIR}/ui/Settings.hpp
+        ${SOA_INCLUDE_DIR}/ui/SimpleUtils.hpp
+        ${SOA_INCLUDE_DIR}/ui/Stage.hpp
+        ${SOA_INCLUDE_DIR}/ui/Styles.hpp
+        ${SOA_INCLUDE_DIR}/ui/View.hpp
+        ${SOA_INCLUDE_DIR}/ui/ViewRouter.hpp
+        ${SOA_INCLUDE_DIR}/ui/WineInstall.hpp
+        ${SOA_INCLUDE_DIR}/ui/WineSelectMenu.hpp
+        ${SOA_INCLUDE_DIR}/ui/WineSettings.hpp
+)
+
+target_include_directories(soa_ui
+        PUBLIC
+        ${SOA_INCLUDE_DIR}
+)
+
+target_link_libraries(soa_ui
+        PUBLIC
+        soa_common
+        soa_auth
+        soa_runtime
+        soa_update
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+)
