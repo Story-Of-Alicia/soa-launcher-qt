@@ -2,7 +2,7 @@ qt_add_executable(soa_launcher
         main.cpp
         MainWindow.cpp
         ${SOA_INCLUDE_DIR}/app/MainWindow.hpp
-        ${SOA_ROOT_DIR}/src/res/resources.qrc
+        ${SOA_ROOT_DIR}/resources.qrc
 )
 
 target_include_directories(soa_launcher
