@@ -8,14 +8,13 @@
 
 class QTimer;
 class QUrl;
-namespace core::wine { class Shell; }
 
 class AuthHandler : public core::status::StatusReporter
 {
     Q_OBJECT
 
     public:
-        explicit AuthHandler(core::wine::Shell* shell, QObject* parent = nullptr);
+        explicit AuthHandler(QObject* parent = nullptr);
 
         void open_login();
         void cancel_login();
@@ -26,6 +25,7 @@ class AuthHandler : public core::status::StatusReporter
     signals:
         void authenticated(const QString& user, const QString& token, const QString& username);
         void login_cancelled();
+        void browser_open_failed();
 
     private:
         bool callback_is_expected(const QUrl& url) const;
@@ -33,7 +33,6 @@ class AuthHandler : public core::status::StatusReporter
                                        const QString& username);
         void reset_pending_login();
 
-        core::wine::Shell* shell {};
         QTimer* timeout_timer {};
         bool pending {};
         bool completion_scheduled {};

@@ -21,15 +21,18 @@ include(CTest)
 add_subdirectory(src/common)
 add_subdirectory(src/credentials)
 add_subdirectory(src/config)
+add_subdirectory(src/i18n)
 add_subdirectory(src/network)
 add_subdirectory(src/update)
 add_subdirectory(src/runtime)
+add_subdirectory(src/platform)
 add_subdirectory(src/auth)
 add_subdirectory(src/ui)
-add_subdirectory(src/i18n)
-add_subdirectory(src/app)
 
 include(cmake/AliciaLogHook.cmake)
+
+add_subdirectory(src/app)
+
 include(cmake/InstallPackaging.cmake)
 
 if(BUILD_TESTING)

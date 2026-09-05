@@ -45,12 +45,6 @@ private:
     void retranslate_content();
     void set_button_pixmap(const QPixmap& pixmap);
     void set_button_text(const QString& source);
-    [[nodiscard]] QString rules_url() const;
-    [[nodiscard]] QString cache_path() const;
-    [[nodiscard]] bool load_cached_document();
-    [[nodiscard]] bool save_cached_document();
-    [[nodiscard]] QString prepare_document(const QByteArray& source) const;
-    [[nodiscard]] static QString rewrite_links(const QString& html);
 
     QTextBrowser* rules_text {};
     QPushButton* agree_button {};

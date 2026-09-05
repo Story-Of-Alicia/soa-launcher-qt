@@ -303,9 +303,15 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    auto& language_manager = util::i18n::LanguageManager::instance();
+    QObject::connect(&language_manager, &util::i18n::LanguageManager::language_changed,
+                     &app, [](const QString& code)
+    {
+        util::assets::set_translated_button_assets(code != QStringLiteral("en"));
+    });
+
     MainWindow* window = new MainWindow;
     app.setQuitOnLastWindowClosed(true);
-    auto& language_manager = util::i18n::LanguageManager::instance();
     language_manager.register_tree(window);
     language_manager.register_tree(launcher_log);
     language_manager.apply_configured_language();

@@ -13,6 +13,9 @@ target_include_directories(soa_update
 target_link_libraries(soa_update
         PUBLIC
         soa_common
+        soa_i18n
         soa_network
         Qt6::Core
 )
+
+soa_apply_build_options(soa_update)

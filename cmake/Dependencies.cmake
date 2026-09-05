@@ -1,7 +1,9 @@
 # Third-party dependencies used across launcher modules.
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent LinguistTools)
-find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
+endif()
 
 find_package(spdlog 1.12 QUIET)
 if(NOT spdlog_FOUND)

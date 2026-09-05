@@ -1,6 +1,6 @@
 #include "common/Log.hpp"
 #include "common/QtLogSink.hpp"
-#include "runtime/MacWineRuntime.hpp"
+#include "common/AppPaths.hpp"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <QStandardPaths>
@@ -88,7 +88,7 @@ namespace core::log
     void init()
     {
 #if defined(Q_OS_MACOS)
-        const QString dir = core::wine::macos::default_log_root();
+        const QString dir = core::paths::default_log_root();
 #else
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
 #endif

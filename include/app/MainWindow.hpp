@@ -33,14 +33,8 @@ namespace core::discord
     class DiscordRpc;
 }
 
-class QAction;
-class QActionGroup;
 class QLabel;
-class QFrame;
-class QMenu;
-class QToolButton;
 class QPushButton;
-class QSystemTrayIcon;
 class AliciaChooser;
 class PrerequisitesIntro;
 class RulesAgreement;
@@ -52,6 +46,8 @@ class WineSelectMenu;
 class WineInstall;
 class LauncherUpdate;
 class AuthHandler;
+class LauncherMenuController;
+class SystemTrayController;
 
 class MainWindow : public QWidget
 {
@@ -62,7 +58,7 @@ public:
     ~MainWindow() override;
 
     void open_launcher_settings();
-    [[nodiscard]] bool has_system_tray() const { return tray_icon != nullptr; }
+    [[nodiscard]] bool has_system_tray() const;
 
     [[nodiscard]] AuthHandler* auth_handler() const
     {
@@ -105,8 +101,6 @@ private:
     void show_launcher();
     void run_game_directly();
     void refresh_tray_actions();
-    void refresh_language_actions();
-    void set_launcher_menu_visible(bool visible);
     void raise_persistent_controls();
     void show_about();
     void show_credits();
@@ -119,20 +113,8 @@ private:
     bool minimized_for_game {};
     bool force_quit_requested {};
     bool launcher_update_check_complete {};
-    QSystemTrayIcon* tray_icon {};
-    QMenu* tray_menu {};
-    QAction* open_launcher_action {};
-    QAction* run_alicia_action {};
-    QAction* tray_quit_action {};
-    QToolButton* launcher_menu_button {};
-    QFrame* launcher_menu_panel {};
-    QMenu* language_menu {};
-    QActionGroup* language_action_group {};
-    QPushButton* language_button {};
-    QPushButton* show_log_button {};
-    QPushButton* check_updates_button {};
-    QPushButton* credits_button {};
-    QPushButton* about_button {};
+    SystemTrayController* tray_controller {};
+    LauncherMenuController* launcher_menu_controller {};
     QLabel* version_art_label {};
     QLabel* version_label {};
     QPushButton* close_button {};

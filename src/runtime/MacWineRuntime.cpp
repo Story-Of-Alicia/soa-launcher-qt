@@ -1,4 +1,5 @@
 #include "runtime/MacWineRuntime.hpp"
+#include "common/AppPaths.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -128,28 +129,17 @@ namespace core::wine::macos
 
     QString application_support_root()
     {
-#if defined(Q_OS_MACOS)
-        QString base = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-        if (base.isEmpty())
-            base = QDir::home().filePath(QStringLiteral("Library/Application Support"));
-        return QDir(base).filePath(QStringLiteral("Story of Alicia"));
-#else
-        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-#endif
+        return core::paths::application_support_root();
     }
 
     QString default_prefix_root()
     {
-#if defined(Q_OS_MACOS)
-        return QDir(application_support_root()).filePath(QStringLiteral("prefixes/shared"));
-#else
-        return QDir(QDir::homePath()).filePath(QStringLiteral("soa-launcher"));
-#endif
+        return core::paths::default_prefix_root();
     }
 
     QString default_log_root()
     {
-        return QDir(application_support_root()).filePath(QStringLiteral("logs"));
+        return core::paths::default_log_root();
     }
 
     QString resolve_wine_executable(const QString& selected_path)

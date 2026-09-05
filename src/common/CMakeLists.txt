@@ -1,10 +1,12 @@
 add_library(soa_common STATIC
+        AppPaths.cpp
         DesktopEntry.cpp
         LaunchArguments.cpp
         Log.cpp
         StatusBus.cpp
         StatusReporter.cpp
 
+        ${SOA_INCLUDE_DIR}/common/AppPaths.hpp
         ${SOA_INCLUDE_DIR}/common/DesktopEntry.hpp
         ${SOA_INCLUDE_DIR}/common/GameVersion.hpp
         ${SOA_INCLUDE_DIR}/common/LaunchArguments.hpp
@@ -23,7 +25,7 @@ target_include_directories(soa_common
 target_link_libraries(soa_common
         PUBLIC
         Qt6::Core
-        Qt6::Gui
-        Qt6::Widgets
         spdlog::spdlog
 )
+
+soa_apply_build_options(soa_common)

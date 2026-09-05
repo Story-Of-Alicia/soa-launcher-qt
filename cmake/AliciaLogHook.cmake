@@ -56,7 +56,6 @@ if(SOA_MINGW_C_COMPILER AND SOA_MINGW_CXX_COMPILER)
             "${SOA_ALICIA_LOG_HOOK_INJECTOR}"
             "${SOA_ALICIA_LOG_HOOK_DLL}"
     )
-    add_dependencies(${PROJECT_NAME} soa_alicia_log_hook)
     set(SOA_ALICIA_LOG_HOOK_AVAILABLE ON)
 else()
     set(SOA_ALICIA_LOG_HOOK_AVAILABLE OFF)

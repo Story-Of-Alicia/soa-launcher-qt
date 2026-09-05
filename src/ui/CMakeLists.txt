@@ -18,6 +18,7 @@ add_library(soa_ui STATIC
         ProgressBar.cpp
         RepairFiles.cpp
         RulesAgreement.cpp
+        RulesDocumentStore.cpp
         Settings.cpp
         SimpleUtils.cpp
         ViewRouter.cpp
@@ -45,6 +46,7 @@ add_library(soa_ui STATIC
         ${SOA_INCLUDE_DIR}/ui/ProgressBar.hpp
         ${SOA_INCLUDE_DIR}/ui/RepairFiles.hpp
         ${SOA_INCLUDE_DIR}/ui/RulesAgreement.hpp
+        ${SOA_INCLUDE_DIR}/ui/RulesDocumentStore.hpp
         ${SOA_INCLUDE_DIR}/ui/Settings.hpp
         ${SOA_INCLUDE_DIR}/ui/SimpleUtils.hpp
         ${SOA_INCLUDE_DIR}/ui/Stage.hpp
@@ -64,10 +66,15 @@ target_include_directories(soa_ui
 target_link_libraries(soa_ui
         PUBLIC
         soa_common
+        soa_config
+        soa_i18n
         soa_auth
+        soa_network
         soa_runtime
         soa_update
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
 )
+
+soa_apply_build_options(soa_ui)

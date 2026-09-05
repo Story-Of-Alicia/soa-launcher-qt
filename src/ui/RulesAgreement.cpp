@@ -4,33 +4,25 @@
 #include "ui/Assets.hpp"
 #include "i18n/LanguageManager.hpp"
 #include "ui/Layout.hpp"
+#include "ui/RulesDocumentStore.hpp"
 #include "ui/SimpleUtils.hpp"
 
 #include <QDesktopServices>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
 #include <QFrame>
 #include <QFontMetrics>
 #include <QIcon>
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
-#include <QRegularExpression>
-#include <QSaveFile>
 #include <QScrollBar>
 #include <QShowEvent>
-#include <QStandardPaths>
 #include <QTextBrowser>
 #include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
 
 #include <spdlog/spdlog.h>
 
-#ifndef SOA_RULES_DOCUMENT_URL
-#define SOA_RULES_DOCUMENT_URL "https://docs.google.com/document/d/1vry3ZuDtzdS_mX1P2udWlb8z2Q9Atr3p1THZdtZ2EHA/export?format=html"
-#endif
+
 
 namespace
 {
@@ -176,45 +168,15 @@ void RulesAgreement::setup_controls()
     update_agree_button();
 }
 
-QString RulesAgreement::rules_url() const
-{
-    const QString override_url = qEnvironmentVariable("SOA_RULES_DOCUMENT_URL").trimmed();
-    return override_url.isEmpty()
-        ? QString::fromUtf8(SOA_RULES_DOCUMENT_URL).trimmed()
-        : override_url;
-}
 
-QString RulesAgreement::cache_path() const
-{
-    QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (root.isEmpty())
-        root = QDir::homePath() + QStringLiteral("/.local/share/Story of Alicia Launcher");
-    QDir().mkpath(root);
-    return QDir(root).filePath(QStringLiteral("rules-document-cache.html"));
-}
 
-bool RulesAgreement::load_cached_document()
-{
-    QFile cache(cache_path());
-    if (!cache.open(QIODevice::ReadOnly))
-        return false;
-    const QByteArray source = cache.readAll();
-    if (source.isEmpty() || source.size() > 4 * 1024 * 1024)
-        return false;
-    document_html = QString::fromUtf8(source);
-    rules_text->setHtml(document_html);
-    document_ready = true;
-    load_error.clear();
-    start_cooldown();
-    return true;
-}
 
 void RulesAgreement::load_rules()
 {
     if (request_id != 0)
         return;
 
-    const QUrl url(rules_url());
+    const QUrl url(ui::rules::RulesDocumentStore::rules_url());
     const bool allow_insecure = qEnvironmentVariableIntValue("SOA_ALLOW_INSECURE_RULES_URL") == 1;
     if (!url.isValid()
         || (url.scheme() != QStringLiteral("https") && !allow_insecure))
@@ -265,7 +227,19 @@ void RulesAgreement::finish_rules_request(const core::network::HttpResponse& res
 
     if (response.result != soa_http_result_completed || status < 200 || status >= 300)
     {
-        if (!document_ready && !load_cached_document())
+        if (!document_ready)
+        {
+            const QString cached = ui::rules::RulesDocumentStore::load_cached_document();
+            if (!cached.isEmpty())
+            {
+                document_html = cached;
+                rules_text->setHtml(document_html);
+                document_ready = true;
+                load_error.clear();
+                start_cooldown();
+            }
+        }
+        if (!document_ready)
         {
             show_load_failure(status > 0
                 ? util::i18n::translate("The rules server returned HTTP %1.").arg(status)
@@ -296,7 +270,7 @@ void RulesAgreement::finish_rules_request(const core::network::HttpResponse& res
 
 void RulesAgreement::show_document(const QByteArray& source, const bool save_cache)
 {
-    const QString prepared = prepare_document(source);
+    const QString prepared = ui::rules::RulesDocumentStore::prepare_document(source, window()->size());
     if (prepared.isEmpty())
     {
         show_load_failure(util::i18n::translate("The rules document could not be rendered."));
@@ -310,15 +284,8 @@ void RulesAgreement::show_document(const QByteArray& source, const bool save_cac
     rules_text->verticalScrollBar()->setValue(0);
     start_cooldown();
 
-    if (save_cache)
-    {
-        QSaveFile cache(cache_path());
-        if (cache.open(QIODevice::WriteOnly))
-        {
-            cache.write(document_html.toUtf8());
-            cache.commit();
-        }
-    }
+    if (save_cache && !ui::rules::RulesDocumentStore::save_cached_document(document_html))
+        SPDLOG_WARN("rules document cache could not be refreshed");
     update_agree_button();
     SPDLOG_INFO("rules document rendered in launcher");
 }
@@ -328,7 +295,7 @@ void RulesAgreement::show_load_failure(const QString& reason)
     loading = false;
     document_ready = false;
     load_error = reason;
-    const QString link = rules_url();
+    const QString link = ui::rules::RulesDocumentStore::rules_url();
     const QSize w = window()->size();
     rules_text->setHtml(QStringLiteral(
         "<div style='padding:%1px %2px; text-align:center; color:#8B2E2E;'>"
@@ -419,88 +386,7 @@ void RulesAgreement::set_button_text(const QString& source)
     fit_button_label(agree_button_label, util::layout::scaled(12, window()->size()));
 }
 
-QString RulesAgreement::prepare_document(const QByteArray& source) const
-{
-    QString html = QString::fromUtf8(source);
-    html.remove(QRegularExpression(QStringLiteral("<script\\b[^>]*>[\\s\\S]*?</script>"),
-                                   QRegularExpression::CaseInsensitiveOption));
-    html.remove(QRegularExpression(QStringLiteral("<!--([\\s\\S]*?)-->")));
 
-    QString styles;
-    const QRegularExpression style_expression(
-        QStringLiteral("<style\\b[^>]*>([\\s\\S]*?)</style>"),
-        QRegularExpression::CaseInsensitiveOption);
-    auto style_iterator = style_expression.globalMatch(html);
-    while (style_iterator.hasNext())
-        styles += style_iterator.next().captured(1) + QLatin1Char('\n');
-
-    const QRegularExpression body_expression(
-        QStringLiteral("<body\\b[^>]*>([\\s\\S]*?)</body>"),
-        QRegularExpression::CaseInsensitiveOption);
-    const QRegularExpressionMatch body_match = body_expression.match(html);
-    QString body = body_match.hasMatch() ? body_match.captured(1) : html;
-    body.remove(QRegularExpression(QStringLiteral("font-size\\s*:[^;\"']+;?"),
-                                   QRegularExpression::CaseInsensitiveOption));
-    body = rewrite_links(body);
-
-    const QSize w = window()->size();
-    const QString launcher_styles = QStringLiteral(
-        "body, p, li, td, span, a { font-family:'Inter'; font-size:%1px; line-height:1.5; color:#392518; }"
-        "h1, h2, h3, h4 { color:#4F1717; font-family:'Eurostile'; font-weight:800; }"
-        "h1 { font-size:%2px; text-align:center; margin:0 0 %3px 0; }"
-        "h2 { font-size:%4px; text-align:center; margin:0 0 %5px 0; }"
-        "h3 { font-size:%6px; margin-top:%7px; }"
-        "a { color:#20AEDD; text-decoration:none; }"
-        "hr { margin:%8px 0 %9px 0; color:#4F1717; }"
-        "ul, ol { margin-left:%10px; }"
-        "table { border-collapse:collapse; width:100%; }"
-        "td { vertical-align:top; padding:%11px %12px; }")
-        .arg(qMax(9, util::layout::scaled(13, w)))
-        .arg(qMax(14, util::layout::scaled(22, w)))
-        .arg(util::layout::scaled(8, w))
-        .arg(qMax(10, util::layout::scaled(15, w)))
-        .arg(util::layout::scaled(28, w))
-        .arg(qMax(9, util::layout::scaled(14, w)))
-        .arg(util::layout::scaled(22, w))
-        .arg(util::layout::scaled(44, w))
-        .arg(util::layout::scaled(6, w))
-        .arg(util::layout::scaled(18, w))
-        .arg(util::layout::scaled(2, w))
-        .arg(util::layout::scaled(6, w));
-    return QStringLiteral("<html><head><style>%1\n%2</style></head><body>%3</body></html>")
-        .arg(styles, launcher_styles, body);
-}
-
-QString RulesAgreement::rewrite_links(const QString& html)
-{
-    const QRegularExpression expression(
-        QStringLiteral("href\\s*=\\s*([\"'])(.*?)\\1"),
-        QRegularExpression::CaseInsensitiveOption);
-    QString result;
-    qsizetype cursor = 0;
-    auto iterator = expression.globalMatch(html);
-    while (iterator.hasNext())
-    {
-        const QRegularExpressionMatch match = iterator.next();
-        result += html.mid(cursor, match.capturedStart() - cursor);
-        QString target = match.captured(2);
-        target.replace(QStringLiteral("&amp;"), QStringLiteral("&"), Qt::CaseInsensitive);
-        QUrl url(target);
-        if (url.isValid()
-            && url.host().compare(QStringLiteral("www.google.com"), Qt::CaseInsensitive) == 0
-            && url.path() == QStringLiteral("/url"))
-        {
-            const QString unwrapped = QUrlQuery(url).queryItemValue(QStringLiteral("q"));
-            if (!unwrapped.isEmpty())
-                target = unwrapped;
-        }
-        const QChar quote = match.captured(1).isEmpty() ? QLatin1Char('\'') : match.captured(1).front();
-        result += QStringLiteral("href=") + quote + target.toHtmlEscaped() + quote;
-        cursor = match.capturedEnd();
-    }
-    result += html.mid(cursor);
-    return result;
-}
 
 void RulesAgreement::showEvent(QShowEvent* event)
 {
@@ -508,7 +394,17 @@ void RulesAgreement::showEvent(QShowEvent* event)
     has_scrolled_to_end = false;
     rules_text->verticalScrollBar()->setValue(0);
     if (document_html.isEmpty())
-        load_cached_document();
+    {
+        const QString cached = ui::rules::RulesDocumentStore::load_cached_document();
+        if (!cached.isEmpty())
+        {
+            document_html = cached;
+            rules_text->setHtml(document_html);
+            document_ready = true;
+            load_error.clear();
+            start_cooldown();
+        }
+    }
     if (request_id == 0)
         load_rules();
     update_agree_button();

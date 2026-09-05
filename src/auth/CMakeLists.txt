@@ -11,10 +11,11 @@ target_include_directories(soa_auth
 target_link_libraries(soa_auth
         PUBLIC
         soa_common
+        soa_config
         soa_credentials
-        soa_runtime
+        soa_platform
         Qt6::Core
         Qt6::Gui
-        Qt6::Widgets
-        Qt6::Network
 )
+
+soa_apply_build_options(soa_auth)
