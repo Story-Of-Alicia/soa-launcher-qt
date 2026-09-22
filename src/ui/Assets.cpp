@@ -1,6 +1,8 @@
 #include "ui/Assets.hpp"
 
+#include <QColor>
 #include <QFontDatabase>
+#include <QImage>
 #include <spdlog/spdlog.h>
 
 #include <initializer_list>
@@ -9,6 +11,76 @@
 namespace
 {
     bool translated_assets_active {};
+
+    QPixmap recolor_cyan_button(const QPixmap& source, const int hue)
+    {
+        if (source.isNull())
+            return {};
+
+        QImage image = source.toImage().convertToFormat(QImage::Format_ARGB32);
+        for (int y = 0; y < image.height(); ++y)
+        {
+            auto* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+            {
+                QColor color = QColor::fromRgba(line[x]);
+                if (color.alpha() == 0)
+                    continue;
+
+                int source_hue = 0;
+                int saturation = 0;
+                int value = 0;
+                int alpha = 0;
+                color.getHsv(&source_hue, &saturation, &value, &alpha);
+                if (source_hue < 175 || source_hue > 210 || saturation < 40)
+                    continue;
+
+                color.setHsv(hue, saturation, value, alpha);
+                line[x] = color.rgba();
+            }
+        }
+
+        return QPixmap::fromImage(image);
+    }
+
+    soa::ui::assets::ButtonAsset recolor_cyan_button_asset(
+        const soa::ui::assets::ButtonAsset& source, const int hue)
+    {
+        return {
+            recolor_cyan_button(source.normal, hue),
+            recolor_cyan_button(source.hover, hue),
+            recolor_cyan_button(source.clicked, hue),
+            source.active
+        };
+    }
+
+    QPixmap discord_mark_from_button(const QPixmap& source)
+    {
+        if (source.isNull())
+            return {};
+
+        const QImage crop = source.copy(QRect(43, 19, 38, 28))
+            .toImage().convertToFormat(QImage::Format_ARGB32);
+        QImage mark(crop.size(), QImage::Format_ARGB32);
+        mark.fill(Qt::transparent);
+
+        constexpr QRgb k_mark = qRgb(79, 23, 23);
+        for (int y = 0; y < crop.height(); ++y)
+        {
+            for (int x = 0; x < crop.width(); ++x)
+            {
+                const QColor pixel = crop.pixelColor(x, y);
+                const int whiteness = qMin(pixel.red(), qMin(pixel.green(), pixel.blue()));
+                if (whiteness < 165)
+                    continue;
+
+                const int alpha = qBound(0, (whiteness - 165) * 255 / 90, 255);
+                mark.setPixel(x, y, qRgba(qRed(k_mark), qGreen(k_mark), qBlue(k_mark), alpha));
+            }
+        }
+
+        return QPixmap::fromImage(mark);
+    }
 }
 
 namespace soa::ui::assets
@@ -56,7 +128,8 @@ namespace soa::ui::assets
             {Image::VersionIconAlicia2, "ver-icon-2.0.png"},
             {Image::VersionIconKatsu, "soa-katsu-version-icon.png"},
             {Image::SoaLogo, "soa-logo.png"},
-            {Image::SettingsButton, "Settings Button.png"}
+            {Image::SettingsButton, "Settings Button.png"},
+            {Image::SignedInAs, "signed-in-as.png"}
         };
 
         for (const auto& [key, path] : definitions)
@@ -64,6 +137,9 @@ namespace soa::ui::assets
             if (QPixmap pixmap = load_pixmap(path); !pixmap.isNull())
                 images[key] = pixmap;
         }
+
+        images[Image::DiscordMark] = discord_mark_from_button(
+            load_pixmap(QStringLiteral("btn-discord-normal-blank.png")));
     }
 
     void load_buttons()
@@ -74,47 +150,53 @@ namespace soa::ui::assets
             QString normal;
             QString hover;
             QString clicked;
-            QString loading;
+            QString active;
             QString translated_normal;
             QString translated_hover;
             QString translated_clicked;
-            QString translated_loading;
+            QString translated_active;
         };
 
         const std::initializer_list<ButtonDefinition> definitions =
         {
             {Button::Agree, "agree_normal.png", "agree_hover.png", "agree_clicked.png", "agree-loading.png", "agree_normal-blank.png", "agree_hover-blank.png", "agree_clicked-blank.png", "agree-loading-blank.png"},
-            {Button::Enter, "enter_normal.png", "enter_hover.png", "enter_clicked.png", "enter_loading.png", "enter_normal-blank.png", "enter_hover-blank.png", "enter_clicked-blank.png", "enter_loading-blank.png"},
+            {Button::Enter, "enter_normal.png", "enter_hover.png", "enter_clicked.png", "enter_loading-blank.png", "enter_normal-blank.png", "enter_hover-blank.png", "enter_clicked-blank.png", "enter_loading-blank.png"},
             {Button::Cancel, "btn-cancel-normal.png", "btn-cancel-hover.png", "btn-cancel-clicked.png", "", "btn-cancel-normal-blank.png", "btn-cancel-hover-blank.png", "btn-cancel-clicked-blank.png", ""},
-            {Button::Discord, "btn-discord-normal.png", "btn-discord-hover.png", "btn-discord-clicked.png", "btn-discord-loading.png", "btn-discord-normal-blank.png", "btn-discord-hover-blank.png", "btn-discord-clicked-blank.png", "btn-discord-loading-blank.png"},
-            {Button::DownloadGame, "btn-download-game-normal.png", "btn-download-game-hover.png", "btn-download-game-clicked.png", "btn-download-game-loading.png", "btn-download-game-normal-blank.png", "btn-download-game-hover-blank.png", "btn-download-game-clicked-blank.png", "btn-download-game-loading-blank.png"},
-            {Button::Install, "btn-install-normal.png", "btn-install-hover.png", "btn-install-clicked.png", "btn-install-loading.png", "btn-install-normal-blank.png", "btn-install-hover-blank.png", "btn-install-clicked-blank.png", "btn-install-loading-blank.png"},
-            {Button::RunCheck, "btn-run-check-normal.png", "btn-run-check-hover.png", "btn-run-check-clicked.png", "btn-run-check-loading.png", "btn-run-check-normal-blank.png", "btn-run-check-hover-blank.png", "btn-run-check-clicked-blank.png", "btn-run-check-loading-blank.png"},
-            {Button::UpdateAvailable, "btn-update-available.png", "btn-update-available-hover.png", "btn-update-available-clicked.png", "", "btn-update-available-blank.png", "btn-update-available-hover-blank.png", "btn-update-available-clicked-blank.png", ""},
+            {Button::Discord, "btn-discord-normal.png", "btn-discord-hover.png", "btn-discord-clicked.png", "btn-discord-loading-blank.png", "btn-discord-normal-blank.png", "btn-discord-hover-blank.png", "btn-discord-clicked-blank.png", "btn-discord-loading-blank.png"},
+            {Button::DownloadGame, "btn-download-game-normal.png", "btn-download-game-hover.png", "btn-download-game-clicked.png", "btn-download-game-loading-blank.png", "btn-download-game-normal-blank.png", "btn-download-game-hover-blank.png", "btn-download-game-clicked-blank.png", "btn-download-game-loading-blank.png"},
+            {Button::Install, "btn-install-normal.png", "btn-install-hover.png", "btn-install-clicked.png", "btn-install-loading-blank.png", "btn-install-normal-blank.png", "btn-install-hover-blank.png", "btn-install-clicked-blank.png", "btn-install-loading-blank.png"},
+            {Button::RunCheck, "btn-run-check-normal.png", "btn-run-check-hover.png", "btn-run-check-clicked.png", "btn-run-check-loading-blank.png", "btn-run-check-normal-blank.png", "btn-run-check-hover-blank.png", "btn-run-check-clicked-blank.png", "btn-run-check-loading-blank.png"},
+            {Button::UpdateAvailable, "btn-update-available.png", "btn-update-available-hover.png", "btn-update-available-clicked.png", "enter_loading-blank.png", "btn-update-available-blank.png", "btn-update-available-hover-blank.png", "btn-update-available-clicked-blank.png", "enter_loading-blank.png"},
             {Button::Repair, "btn-repair.png", "btn-repair-hover.png", "btn-repair-clicked.png", "", "btn-repair-blank.png", "btn-repair-hover-blank.png", "btn-repair-clicked-blank.png", ""},
             {Button::SliderOn, "slider-toggle-on.png", "", "", "", "slider-toggle-on.png", "", "", ""},
             {Button::SliderOff, "slider-toggle-off.png", "", "", "", "slider-toggle-off.png", "", "", ""}
         };
 
         const auto load_asset = [](const QString& normal, const QString& hover,
-                                   const QString& clicked, const QString& loading)
+                                   const QString& clicked, const QString& active)
         {
             ButtonAsset asset;
             asset.normal = normal.isEmpty() ? QPixmap{} : load_pixmap(normal);
             asset.hover = hover.isEmpty() ? QPixmap{} : load_pixmap(hover);
             asset.clicked = clicked.isEmpty() ? QPixmap{} : load_pixmap(clicked);
-            asset.loading = loading.isEmpty() ? QPixmap{} : load_pixmap(loading);
+            asset.active = active.isEmpty() ? QPixmap{} : load_pixmap(active);
             return asset;
         };
 
         for (const ButtonDefinition& definition : definitions)
         {
             english_buttons[definition.key] = load_asset(
-                definition.normal, definition.hover, definition.clicked, definition.loading);
+                definition.normal, definition.hover, definition.clicked, definition.active);
             translated_buttons[definition.key] = load_asset(
                 definition.translated_normal, definition.translated_hover,
-                definition.translated_clicked, definition.translated_loading);
+                definition.translated_clicked, definition.translated_active);
         }
+
+        constexpr int k_alicia_2_button_hue = 28;
+        english_buttons[Button::EnterAlicia2] = recolor_cyan_button_asset(
+            english_buttons[Button::Enter], k_alicia_2_button_hue);
+        translated_buttons[Button::EnterAlicia2] = recolor_cyan_button_asset(
+            translated_buttons[Button::Enter], k_alicia_2_button_hue);
     }
 
     void load_fonts()

@@ -129,6 +129,7 @@ void WineInstall::setup_buttons()
 void WineInstall::set_installing(const bool value)
 {
     installing = value;
+    soa::ui::simple_utils::set_button_active(install_button, value);
     install_button->setEnabled(!value);
     change_path_button->setEnabled(!value);
     cancel_button->setEnabled(!value);

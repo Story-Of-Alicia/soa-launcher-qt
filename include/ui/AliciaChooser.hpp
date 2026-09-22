@@ -86,7 +86,10 @@ private:
     QLabel* signed_bug_label {};
     QCheckBox* signed_rules_checkbox {};
     QLabel* signed_rules_label {};
+    QLabel* signed_in_banner {};
+    QLabel* signed_in_icon {};
     QLabel* signed_in_label {};
+    QPushButton* sign_out_button {};
     QPushButton* enter_button {};
     QPushButton* reset_path_button {};
     QPointer<LauncherDialog> warning_dialog;

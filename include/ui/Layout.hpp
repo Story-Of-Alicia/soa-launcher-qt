@@ -209,6 +209,9 @@ namespace soa::ui::layout
         inline constexpr QRect k_signed_rules_checkbox {104, 116, 24, 28};
         inline constexpr QRect k_signed_rules_text     {134, 116, 402, 28};
         inline constexpr QRect k_signed_in_banner {105, 150, 430, 48};
+        inline constexpr QRect k_signed_in_icon   {119, 162, 24, 24};
+        inline constexpr QRect k_signed_in_text   {151, 150, 276, 48};
+        inline constexpr QRect k_sign_out         {439, 150, 86, 48};
         inline constexpr QRect k_enter_button     {105, 211, 430, 67};
 
         QRect  rect(QSize win);
@@ -237,6 +240,9 @@ namespace soa::ui::layout
         QRect  signed_rules_checkbox(QSize win);
         QRect  signed_rules_text(QSize win);
         QRect  signed_in_banner(QSize win);
+        QRect  signed_in_icon(QSize win);
+        QRect  signed_in_text(QSize win);
+        QRect  sign_out(QSize win);
         QRect  enter_button(QSize win);
     }
 

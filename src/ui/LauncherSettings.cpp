@@ -362,7 +362,7 @@ void LauncherSettings::run_connectivity_check()
     connectivity_success.clear();
     pending_connectivity_checks = connectivity_order.size();
     connectivity_button->setEnabled(false);
-    soa::ui::simple_utils::set_button_loading(connectivity_button, true);
+    soa::ui::simple_utils::set_button_active(connectivity_button, true);
     connectivity_panel->show();
     refresh_connectivity_report();
 
@@ -563,7 +563,7 @@ void LauncherSettings::refresh_connectivity_report()
 void LauncherSettings::finish_connectivity_check()
 {
     connectivity_button->setEnabled(true);
-    soa::ui::simple_utils::set_button_loading(connectivity_button, false);
+    soa::ui::simple_utils::set_button_active(connectivity_button, false);
 }
 
 void LauncherSettings::setup_launcher_size_option()

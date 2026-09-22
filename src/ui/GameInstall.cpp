@@ -132,7 +132,7 @@ void GameInstall::set_installing(const bool value)
 {
     installing = value;
 
-    soa::ui::simple_utils::set_button_loading(install_button, value);
+    soa::ui::simple_utils::set_button_active(install_button, value);
     install_button->setEnabled(!value);
     change_path_button->setEnabled(!value);
     update();

@@ -40,6 +40,8 @@ namespace soa::ui::assets
         VersionIconKatsu,
         SoaLogo,
         SettingsButton,
+        SignedInAs,
+        DiscordMark,
         Count
     };
 
@@ -47,6 +49,7 @@ namespace soa::ui::assets
     {
         Agree,
         Enter,
+        EnterAlicia2,
         Cancel,
         Discord,
         DownloadGame,
@@ -74,7 +77,7 @@ namespace soa::ui::assets
         QPixmap normal;
         QPixmap hover;
         QPixmap clicked;
-        QPixmap loading;
+        QPixmap active;
     };
 
     void load_fonts();

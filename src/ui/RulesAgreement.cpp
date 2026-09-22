@@ -321,10 +321,19 @@ void RulesAgreement::start_cooldown()
 void RulesAgreement::update_agree_button()
 {
     const auto& assets = soa::ui::assets::translated_buttons[soa::ui::assets::Button::Agree];
+    const bool active_visual = loading
+        || (document_ready && seconds_remaining > 0 && !has_scrolled_to_end);
+    agree_button_label->setStyleSheet(active_visual
+        ? QStringLiteral(
+            "QLabel { color:#8E8170; background:transparent; }"
+            "QLabel:disabled { color:#8E8170; }")
+        : QStringLiteral(
+            "QLabel { color:#FFFFFF; background:transparent; }"
+            "QLabel:disabled { color:#FFFFFF; }"));
     if (loading)
     {
         agree_button->setEnabled(false);
-        set_button_pixmap(assets.loading.isNull() ? assets.normal : assets.loading);
+        set_button_pixmap(assets.active.isNull() ? assets.normal : assets.active);
         set_button_text(QStringLiteral("LOADING RULES..."));
     }
     else if (!document_ready)
@@ -336,7 +345,7 @@ void RulesAgreement::update_agree_button()
     else if (seconds_remaining > 0 && !has_scrolled_to_end)
     {
         agree_button->setEnabled(false);
-        set_button_pixmap(assets.loading.isNull() ? assets.normal : assets.loading);
+        set_button_pixmap(assets.active.isNull() ? assets.normal : assets.active);
         agree_button_label->setText(soa::i18n::translate("PLEASE READ (%1)")
                                         .arg(seconds_remaining));
         fit_button_label(agree_button_label, soa::ui::layout::scaled(12, window()->size()));

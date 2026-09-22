@@ -45,7 +45,7 @@ namespace
     {
         static const QStringList templates {
             QStringLiteral("\n\nDiagnostic run: %1"),
-            QStringLiteral("  SIGNED IN AS %1"),
+            QStringLiteral("SIGNED IN AS %1"),
             QStringLiteral(" The compatibility process exited with code %1%2."),
             QStringLiteral("\"%1\"=dword:00000001\n"),
             QStringLiteral("\"MacCompatibilityProfile\"=\"%1\"\n"),

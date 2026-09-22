@@ -36,20 +36,19 @@ namespace
             .arg(soa::ui::layout::scaled(12, window_size));
     }
 
-    QString banner_box_style(const QSize window_size)
+    QString sign_out_link_style(const QSize window_size)
     {
+        Q_UNUSED(window_size);
         return QStringLiteral(
-            "QLabel {"
-            "background: rgba(196, 150, 128, 0.12);"
-            "border-radius: 0px;"
-            "color: #4F1717;"
-            "font-family: 'Eurostile';"
-            "font-weight: 800;"
-            "font-size: %1px;"
-            "padding: 0px %2px;"
-            "}")
-            .arg(qMax(9, soa::ui::layout::scaled(14, window_size)))
-            .arg(soa::ui::layout::scaled(16, window_size));
+            "QPushButton {"
+            "background: transparent;"
+            "border: none;"
+            "color: #8E8170;"
+            "text-align: right;"
+            "padding-right: 0px;"
+            "}"
+            "QPushButton:hover { color: #4F1717; }"
+            "QPushButton:disabled { color: #A89B8D; }");
     }
 
     QString reset_link_style(const QSize window_size)
@@ -274,13 +273,18 @@ void AliciaChooser::on_stage_changed(const Stage stage)
     const bool actionable = stage == Stage::NeedsRuntime || stage == Stage::NeedsPrefix
         || stage == Stage::PrefixBroken || stage == Stage::NeedsDownload
         || stage == Stage::NeedsUpdate;
+    const bool download_active = stage == Stage::SettingUpPrefix
+        || stage == Stage::CheckingUpdate
+        || stage == Stage::Downloading
+        || stage == Stage::Updating;
+    soa::ui::simple_utils::set_button_active(download_button, download_active);
     soa::ui::simple_utils::set_button_enabled(download_button, actionable);
-    const auto action = stage == Stage::NeedsUpdate
+    const auto action = stage == Stage::NeedsUpdate || stage == Stage::Updating
         ? soa::ui::assets::Button::UpdateAvailable
         : soa::ui::assets::Button::DownloadGame;
     soa::ui::simple_utils::set_button_asset(download_button, action);
     soa::ui::simple_utils::set_button_text(
-        download_button, stage == Stage::NeedsUpdate
+        download_button, stage == Stage::NeedsUpdate || stage == Stage::Updating
             ? QStringLiteral("UPDATE AVAILABLE")
             : QStringLiteral("DOWNLOAD GAME"));
 
@@ -514,13 +518,56 @@ void AliciaChooser::setup_signedin_state()
         "QLabel a { color: #2FB4E0; text-decoration: none; }"));
     signed_rules_label->setGeometry(soa::ui::layout::alicia_chooser::signed_rules_text(w));
 
-    signed_in_label = new QLabel("  SIGNED IN", this);
+    signed_in_banner = new QLabel(this);
+    const QRect banner_rect = soa::ui::layout::alicia_chooser::signed_in_banner(w);
+    signed_in_banner->setGeometry(banner_rect);
+    signed_in_banner->setPixmap(
+        soa::ui::assets::images[soa::ui::assets::Image::SignedInAs].scaled(
+            banner_rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    signed_in_banner->setScaledContents(false);
+
+    signed_in_icon = new QLabel(this);
+    signed_in_icon->setGeometry(soa::ui::layout::alicia_chooser::signed_in_icon(w));
+    signed_in_icon->setAlignment(Qt::AlignCenter);
+    signed_in_icon->setPixmap(
+        soa::ui::assets::images[soa::ui::assets::Image::DiscordMark].scaled(
+            signed_in_icon->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+    signed_in_label = new QLabel("SIGNED IN", this);
     signed_in_label->setTextFormat(Qt::PlainText);
-    signed_in_label->setStyleSheet(banner_box_style(w));
-    signed_in_label->setGeometry(soa::ui::layout::alicia_chooser::signed_in_banner(w));
+    signed_in_label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    signed_in_label->setGeometry(soa::ui::layout::alicia_chooser::signed_in_text(w));
+    QFont signed_in_font = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileExtraBlack];
+    signed_in_font.setPixelSize(qMax(9, soa::ui::layout::scaled(14, w)));
+    signed_in_font.setWeight(QFont::Black);
+    signed_in_label->setFont(signed_in_font);
+    signed_in_label->setStyleSheet(QStringLiteral(
+        "QLabel { color: #4F1717; background: transparent; }"));
+
+    sign_out_button = new QPushButton(this);
+    sign_out_button->setFlat(true);
+    sign_out_button->setCursor(Qt::PointingHandCursor);
+    sign_out_button->setGeometry(soa::ui::layout::alicia_chooser::sign_out(w));
+    sign_out_button->setStyleSheet(sign_out_link_style(w));
+    QFont sign_out_font = soa::ui::assets::fonts[soa::ui::assets::Font::Inter];
+    sign_out_font.setPixelSize(qMax(8, soa::ui::layout::scaled(11, w)));
+    sign_out_font.setWeight(QFont::Bold);
+    sign_out_font.setUnderline(true);
+    sign_out_button->setFont(sign_out_font);
+    sign_out_button->setAccessibleName(QStringLiteral("Sign out"));
+    connect(sign_out_button, &QPushButton::clicked, this, [this]()
+    {
+        if (current_stage == Stage::Launching || current_stage == Stage::Running)
+            return;
+        sign_out_button->setEnabled(false);
+        Config::instance().clear_auth();
+    });
 
     const QRect er = soa::ui::layout::alicia_chooser::enter_button(w);
-    const QPixmap& enter_normal = soa::ui::assets::button(soa::ui::assets::Button::Enter).normal;
+    const auto enter_asset = game_version == soa::common::game::GameVersion::Alicia2
+        ? soa::ui::assets::Button::EnterAlicia2
+        : soa::ui::assets::Button::Enter;
+    const QPixmap& enter_normal = soa::ui::assets::button(enter_asset).normal;
     const int ew = er.width();
     const int eh = qRound(ew * static_cast<double>(enter_normal.height()) / enter_normal.width());
 
@@ -536,7 +583,7 @@ void AliciaChooser::setup_signedin_state()
     QFont enter_font = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileExtraBlack];
     enter_font.setPixelSize(soa::ui::layout::scaled(20, w));
     enter_font.setWeight(QFont::Black);
-    soa::ui::simple_utils::add_button_text(enter_button, soa::ui::assets::Button::Enter, QStringLiteral("ENTER THE PLAYTEST"), enter_font);
+    soa::ui::simple_utils::add_button_text(enter_button, enter_asset, QStringLiteral("ENTER THE PLAYTEST"), enter_font);
     enter_button->setEnabled(false);
     enter_button->setAccessibleName(QStringLiteral("Enter the playtest"));
     enter_button->installEventFilter(this);
@@ -587,7 +634,10 @@ void AliciaChooser::apply_state_visibility()
     signed_bug_label->setVisible(signedin);
     signed_rules_checkbox->setVisible(signedin);
     signed_rules_label->setVisible(signedin);
+    signed_in_banner->setVisible(signedin);
+    signed_in_icon->setVisible(signedin);
     signed_in_label->setVisible(signedin);
+    sign_out_button->setVisible(signedin);
     enter_button->setVisible(signedin);
 
     const bool game_active =
@@ -602,6 +652,12 @@ void AliciaChooser::apply_state_visibility()
         ? soa::i18n::translate(
               "Reset launcher settings and sign-in without deleting the shared prefix or either game")
         : soa::i18n::translate("Launcher settings cannot be reset while Alicia is active"));
+
+    sign_out_button->setEnabled(!game_active);
+    sign_out_button->setCursor(game_active ? Qt::ArrowCursor : Qt::PointingHandCursor);
+    sign_out_button->setToolTip(game_active
+        ? soa::i18n::translate("Sign out is unavailable while Alicia is active")
+        : soa::i18n::translate("Sign out of Discord"));
 }
 
 void AliciaChooser::refresh_enter_enabled()
@@ -613,6 +669,8 @@ void AliciaChooser::refresh_enter_enabled()
         || (signed_bug_checkbox && signed_bug_checkbox->isChecked()
             && signed_rules_checkbox && signed_rules_checkbox->isChecked());
     const bool ready = current_stage == Stage::Ready && acknowledged;
+    const bool active = current_stage == Stage::Launching || current_stage == Stage::Running;
+    soa::ui::simple_utils::set_button_active(enter_button, active);
     soa::ui::simple_utils::set_button_enabled(enter_button, ready);
     enter_button->setToolTip(current_stage == Stage::Running
         ? soa::i18n::translate("Alicia is already running")
@@ -657,14 +715,14 @@ void AliciaChooser::refresh_session_banner()
     QString source;
     if (current_stage == Stage::Launching)
     {
-        source = QStringLiteral("  STARTING ALICIA…");
+        source = QStringLiteral("STARTING ALICIA…");
         signed_in_label->setAccessibleName(soa::i18n::translate("Alicia is starting"));
         enter_button->setAccessibleDescription(
             soa::i18n::translate("Disabled while Alicia is starting"));
     }
     else if (current_stage == Stage::Running)
     {
-        source = QStringLiteral("  ALICIA IS RUNNING");
+        source = QStringLiteral("ALICIA IS RUNNING");
         signed_in_label->setAccessibleName(soa::i18n::translate("Alicia is running"));
         enter_button->setAccessibleDescription(
             soa::i18n::translate("Disabled while Alicia is running"));
@@ -675,8 +733,8 @@ void AliciaChooser::refresh_session_banner()
             ? Config::instance().username().trimmed()
             : Config::instance().display_name().trimmed();
         source = account.isEmpty()
-            ? QStringLiteral("  SIGNED IN")
-            : QStringLiteral("  SIGNED IN AS %1").arg(account);
+            ? QStringLiteral("SIGNED IN")
+            : QStringLiteral("SIGNED IN AS %1").arg(account.toUpper());
         signed_in_label->setAccessibleName(
             account.isEmpty() ? soa::i18n::translate("Signed in")
                               : soa::i18n::translate("Signed in as %1").arg(account));
@@ -686,6 +744,8 @@ void AliciaChooser::refresh_session_banner()
 
     set_dynamic_text(signed_in_label, source);
     signed_in_label->setToolTip(signed_in_label->text().trimmed());
+    if (sign_out_button)
+        sign_out_button->setText(soa::i18n::translate("SIGN OUT"));
 }
 
 void AliciaChooser::set_warning(const QString& message)
@@ -804,6 +864,14 @@ void AliciaChooser::refresh_game_text()
     title_label->setText(alicia_2
         ? soa::i18n::translate("STORY OF ALICIA 2.0 PLAYTEST")
         : soa::i18n::translate("PLAYTEST"));
+
+    if (enter_button)
+    {
+        soa::ui::simple_utils::set_button_asset(
+            enter_button,
+            alicia_2 ? soa::ui::assets::Button::EnterAlicia2
+                     : soa::ui::assets::Button::Enter);
+    }
 }
 
 void AliciaChooser::paintEvent(QPaintEvent* event)
@@ -843,7 +911,10 @@ bool AliciaChooser::eventFilter(QObject* obj, QEvent* event)
     }
     else if (obj == enter_button)
     {
-        const auto& button = soa::ui::assets::button(soa::ui::assets::Button::Enter);
+        const auto enter_asset = game_version == soa::common::game::GameVersion::Alicia2
+            ? soa::ui::assets::Button::EnterAlicia2
+            : soa::ui::assets::Button::Enter;
+        const auto& button = soa::ui::assets::button(enter_asset);
         soa::ui::simple_utils::apply_button_state(event, enter_button,
                                                button.normal, button.hover, button.clicked);
     }

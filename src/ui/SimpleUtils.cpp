@@ -103,7 +103,7 @@ namespace soa::ui::simple_utils
         constexpr auto k_text_source_property = "soa_i18n_text_source";
         constexpr auto k_base_pixel_size_property = "soa_button_text_base_pixel_size";
         constexpr auto k_asset_property = "soa_button_asset";
-        constexpr auto k_loading_property = "soa_button_loading";
+        constexpr auto k_active_property = "soa_button_active";
         constexpr auto k_connected_property = "soa_button_language_connected";
         constexpr auto k_stretch_asset_property = "soa_button_stretch_asset";
 
@@ -115,26 +115,33 @@ namespace soa::ui::simple_utils
                 : nullptr;
         }
 
-        void enforce_white_button_text(QLabel* label)
+        void apply_button_text_color(QLabel* label, const bool active)
         {
             if (!label)
                 return;
 
+            const QColor normal = active ? QColor(142, 129, 112) : QColor(Qt::white);
             constexpr int k_disabled_text_alpha = 140;
             QPalette palette = label->palette();
             for (const QPalette::ColorGroup group :
                  {QPalette::Active, QPalette::Inactive})
             {
-                palette.setColor(group, QPalette::WindowText, Qt::white);
-                palette.setColor(group, QPalette::Text, Qt::white);
+                palette.setColor(group, QPalette::WindowText, normal);
+                palette.setColor(group, QPalette::Text, normal);
             }
-            const QColor faded(255, 255, 255, k_disabled_text_alpha);
+            const QColor faded = active
+                ? normal
+                : QColor(255, 255, 255, k_disabled_text_alpha);
             palette.setColor(QPalette::Disabled, QPalette::WindowText, faded);
             palette.setColor(QPalette::Disabled, QPalette::Text, faded);
             label->setPalette(palette);
-            label->setStyleSheet(QStringLiteral(
-                "QLabel { background: transparent; color: #FFFFFF; }"
-                "QLabel:disabled { color: rgba(255,255,255,140); }"));
+            label->setStyleSheet(active
+                ? QStringLiteral(
+                    "QLabel { background: transparent; color: #8E8170; }"
+                    "QLabel:disabled { color: #8E8170; }")
+                : QStringLiteral(
+                    "QLabel { background: transparent; color: #FFFFFF; }"
+                    "QLabel:disabled { color: rgba(255,255,255,140); }"));
         }
 
         void fit_button_text(QLabel* label)
@@ -217,12 +224,14 @@ namespace soa::ui::simple_utils
             return result;
         }
 
-        void set_button_icon(QPushButton* button, const QPixmap& source)
+        void set_button_icon(QPushButton* button, const QPixmap& source,
+                             const bool preserve_disabled = false)
         {
             const QPixmap displayed = displayed_button_pixmap(button, source);
             QIcon icon;
             icon.addPixmap(displayed, QIcon::Normal);
-            icon.addPixmap(disabled_button_pixmap(displayed), QIcon::Disabled);
+            icon.addPixmap(preserve_disabled ? displayed : disabled_button_pixmap(displayed),
+                           QIcon::Disabled);
             button->setIcon(icon);
         }
     }
@@ -234,17 +243,17 @@ namespace soa::ui::simple_utils
 
         const assets::Button key = button_asset_key(button);
         const assets::ButtonAsset& asset = assets::button(key);
-        const bool loading = button->property(k_loading_property).toBool();
-        const QPixmap& pixmap = loading && !asset.loading.isNull() ? asset.loading : asset.normal;
-        set_button_icon(button, pixmap);
+        const bool active = button->property(k_active_property).toBool();
+        const QPixmap& pixmap = active && !asset.active.isNull() ? asset.active : asset.normal;
+        set_button_icon(button, pixmap, active);
 
         if (QLabel* label = button_text_label(button))
         {
             const QString source = label->property(k_text_source_property).toString();
             label->setText(i18n::translate(source));
-            enforce_white_button_text(label);
+            apply_button_text_color(label, active);
             fit_button_text(label);
-            label->setVisible(assets::translated_button_assets_active());
+            label->setVisible(assets::translated_button_assets_active() || active);
             label->raise();
         }
     }
@@ -265,11 +274,11 @@ namespace soa::ui::simple_utils
         button->setCursor(enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
     }
 
-    void set_button_loading(QPushButton* button, const bool loading)
+    void set_button_active(QPushButton* button, const bool active)
     {
         if (!button)
             return;
-        button->setProperty(k_loading_property, loading);
+        button->setProperty(k_active_property, active);
         refresh_button(button);
     }
 
@@ -294,9 +303,9 @@ namespace soa::ui::simple_utils
         label->setFont(font);
         label->setProperty(k_base_pixel_size_property, font.pixelSize());
         label->setProperty(k_text_source_property, source);
-        enforce_white_button_text(label);
+        apply_button_text_color(label, false);
         button->setProperty(k_asset_property, static_cast<int>(asset));
-        button->setProperty(k_loading_property, false);
+        button->setProperty(k_active_property, false);
 
         if (!button->property(k_connected_property).toBool())
         {
@@ -326,6 +335,9 @@ namespace soa::ui::simple_utils
                             const QPixmap& normal, const QPixmap& hover,
                             const QPixmap& clicked)
     {
+        if (!button || !button->isEnabled() || button->property(k_active_property).toBool())
+            return false;
+
         switch (event->type())
         {
             case QEvent::Enter:

@@ -93,6 +93,9 @@ namespace soa::ui::layout
         QRect  signed_rules_checkbox(const QSize win) { return scaled(k_signed_rules_checkbox, win); }
         QRect  signed_rules_text(const QSize win) { return scaled(k_signed_rules_text, win); }
         QRect  signed_in_banner(const QSize win)  { return scaled(k_signed_in_banner, win); }
+        QRect  signed_in_icon(const QSize win)    { return scaled(k_signed_in_icon, win); }
+        QRect  signed_in_text(const QSize win)    { return scaled(k_signed_in_text, win); }
+        QRect  sign_out(const QSize win)          { return scaled(k_sign_out, win); }
         QRect  enter_button(const QSize win)      { return scaled(k_enter_button, win); }
     }
 
