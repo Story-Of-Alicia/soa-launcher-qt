@@ -419,7 +419,7 @@ void WineSelectMenu::populate()
         const QString type = wi.type == cw::RuntimeType::Proton
             ? soa::i18n::translate("Proton") : soa::i18n::translate("Wine");
 #endif
-        QString details = wi.version.isEmpty() ? wi.issue : wi.version;
+        QString details = wi.version.isEmpty() ? soa::i18n::translate(wi.issue) : wi.version;
         if (details.isEmpty()) details = soa::i18n::translate("Capability probe failed");
         if (wi.requires_rosetta)
         {
@@ -429,10 +429,11 @@ void WineSelectMenu::populate()
         }
         const QString architecture = wi.architectures.isEmpty()
             ? soa::i18n::translate("unknown architecture") : wi.architectures;
-        auto* row = new RuntimeRow(wi.name, type, architecture, wi.path, details, content);
+        const QString name = soa::i18n::translate(wi.name);
+        auto* row = new RuntimeRow(name, type, architecture, wi.path, details, content);
         row->setEnabled(wi.usable);
         row->setMinimumHeight(qMax(76, soa::ui::layout::scaled(94, window()->size())));
-        row->setAccessibleName(soa::i18n::translate("Select runtime: %1").arg(wi.name));
+        row->setAccessibleName(soa::i18n::translate("Select runtime: %1").arg(name));
         row->setAccessibleDescription(QStringLiteral("%1 · %2 · %3")
             .arg(type, architecture, details));
         connect(row, &QAbstractButton::clicked, this, [this, i]() { select_row(i); });

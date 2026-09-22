@@ -60,7 +60,8 @@ namespace soa::common::launch_arguments
             if (is_reserved(argument))
             {
                 result.error = QStringLiteral(
-                    "-OP, -ID, and -GameID are managed by the launcher and cannot be overridden.");
+                    "%1 are managed by the launcher and cannot be overridden.")
+                    .arg(QStringLiteral("-OP, -ID, and -GameID"));
                 return result;
             }
             if (is_environment_assignment(argument))

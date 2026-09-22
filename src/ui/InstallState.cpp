@@ -15,6 +15,8 @@
 #include "config/Config.hpp"
 #include <spdlog/spdlog.h>
 
+#include "i18n/LanguageManager.hpp"
+
 namespace soa::ui
 {
     namespace
@@ -263,7 +265,7 @@ namespace soa::ui
                 {
                     const QString detail = status.base.message.isEmpty()
                         ? QStringLiteral("The game download failed.")
-                        : status.base.message;
+                        : soa::i18n::translate(status.base.message);
                     set_warning(QStringLiteral(
                         "The last game transfer failed. Retry will verify existing files and continue: %1")
                         .arg(detail));

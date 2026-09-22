@@ -152,7 +152,7 @@ void LauncherUpdate::setup_controls()
     update_button->setIconSize(update_button->size());
     update_button->setProperty("soa_button_stretch_asset", true);
     update_button->installEventFilter(this);
-    update_button->setAccessibleName(QStringLiteral("Update launcher now"));
+    update_button->setAccessibleName(soa::i18n::translate("Update launcher now"));
 
     update_button_label = new QLabel(update_button);
     update_button_label->setGeometry(update_button->rect());
@@ -185,7 +185,7 @@ void LauncherUpdate::setup_controls()
                           {0, 0, k_box_size.width(), k_box_size.height()})));
     close_button->setIcon(QIcon(soa::ui::assets::images[soa::ui::assets::Image::CloseSettings]));
     close_button->setIconSize(soa::ui::layout::scaled(soa::ui::layout::modal_close::k_icon, w));
-    close_button->setAccessibleName(QStringLiteral("Postpone launcher update"));
+    close_button->setAccessibleName(soa::i18n::translate("Postpone launcher update"));
 
     connect(update_button, &QPushButton::clicked, this, [this]()
     {

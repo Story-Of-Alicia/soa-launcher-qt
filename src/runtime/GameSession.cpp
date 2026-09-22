@@ -1234,20 +1234,17 @@ namespace soa::runtime
 
         if (verification_attempts_ >= k_start_max_attempts)
         {
-            QString detail = QStringLiteral("The compatibility process started, but Alicia.exe was "
-                                            "never observed in the process list.");
+            QString detail = soa::i18n::translate(
+                "The compatibility process started, but Alicia.exe was never observed in the process list.");
             if (wrapper_state_ == WrapperState::Finished)
             {
-                detail += QStringLiteral(" The compatibility process exited with "
-                                         "code %1%2.")
+                detail += soa::i18n::translate(" The compatibility process exited with code %1%2.")
                               .arg(wrapper_result_.exit_code)
-                              .arg(wrapper_result_.crashed ? QStringLiteral(" after a crash")
+                              .arg(wrapper_result_.crashed ? soa::i18n::translate(" after a crash")
                                                            : QString());
             }
-            detail += QStringLiteral(" The launcher stayed in Launching instead "
-                                     "of falsely reporting Running; check the "
-                                     "launcher log for the first Wine or DLL "
-                                     "error.");
+            detail += soa::i18n::translate(
+                " The launcher stayed in Launching instead of falsely reporting Running; check the launcher log for the first Wine or DLL error.");
             fail_game_launch(detail);
             return;
         }
@@ -1773,11 +1770,11 @@ namespace soa::runtime
                 {
                     fail_game_launch(QStringLiteral(
                         "The 1024x720 windowed D3D9 compatibility hook could not be prepared: %1")
-                                         .arg(alicia_log_hook.failure));
+                                         .arg(soa::i18n::translate(alicia_log_hook.failure)));
                     return;
                 }
                 if (callbacks_.user_notice)
-                    callbacks_.user_notice(alicia_log_hook.failure);
+                    callbacks_.user_notice(soa::i18n::translate(alicia_log_hook.failure));
             }
         }
 
@@ -1790,7 +1787,8 @@ namespace soa::runtime
         if (!custom_arguments.valid)
         {
             fail_game_launch(
-                QStringLiteral("Invalid launch arguments: %1").arg(custom_arguments.error));
+                QStringLiteral("Invalid launch arguments: %1")
+                    .arg(soa::i18n::translate(custom_arguments.error)));
             return;
         }
         game_arguments.append(custom_arguments.arguments);
@@ -1826,11 +1824,12 @@ namespace soa::runtime
             if (!patch_existing_alice_config(launch_->game_directory, patch_message))
             {
                 fail_game_launch(
-                    QStringLiteral("Compatibility profile failed: %1").arg(patch_message));
+                    QStringLiteral("Compatibility profile failed: %1")
+                        .arg(soa::i18n::translate(patch_message)));
                 return;
             }
             if (callbacks_.user_notice)
-                callbacks_.user_notice(patch_message);
+                callbacks_.user_notice(soa::i18n::translate(patch_message));
         }
 #endif
 

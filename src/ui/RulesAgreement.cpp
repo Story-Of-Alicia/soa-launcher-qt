@@ -243,7 +243,8 @@ void RulesAgreement::finish_rules_request(const soa::network::HttpResponse& resp
         {
             show_load_failure(status > 0
                 ? soa::i18n::translate("The rules server returned HTTP %1.").arg(status)
-                : soa::i18n::translate("Failed to load rules: %1").arg(network_message));
+                : soa::i18n::translate("Failed to load rules: %1")
+                    .arg(soa::i18n::translate(network_message)));
         }
         else
         {

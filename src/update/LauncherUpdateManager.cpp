@@ -476,7 +476,8 @@ namespace soa::update
             case soa_launcher_error_network:
                 return detail.isEmpty()
                     ? soa::i18n::translate("The launcher update network request failed.")
-                    : soa::i18n::translate("The launcher update network request failed: %1").arg(detail);
+                    : soa::i18n::translate("The launcher update network request failed: %1")
+                        .arg(soa::i18n::translate(detail));
             default:
                 return detail.isEmpty()
                     ? soa::i18n::translate("The launcher update failed.")

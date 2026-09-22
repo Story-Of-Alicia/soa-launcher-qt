@@ -40,7 +40,7 @@ LauncherInfoDialog::LauncherInfoDialog(const Page page_, QWidget* parent)
     setAttribute(Qt::WA_TranslucentBackground);
     const QSize reference = parent ? parent->window()->size() : soa::ui::layout::win::k_default;
     setFixedSize(soa::ui::layout::scaled(
-        page == Page::Credits ? QSize(610, 425) : QSize(680, 400), reference));
+        page == Page::Credits ? QSize(610, 425) : QSize(680, 430), reference));
     setup_ui();
     retranslate();
 
@@ -191,7 +191,7 @@ void LauncherInfoDialog::setup_ui()
     info_label->setFont(info_font);
     info_label->setStyleSheet(QStringLiteral("color: #4F1717;"));
     info_layout->addWidget(info_label);
-    info_card->setFixedHeight(scaled(page == Page::Credits ? 200 : 116));
+    info_card->setFixedHeight(scaled(page == Page::Credits ? 200 : 136));
     root->addSpacing(scaled(4));
     root->addWidget(info_card);
 

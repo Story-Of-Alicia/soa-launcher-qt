@@ -111,10 +111,12 @@ namespace
         if (requirements.isEmpty()) return {};
         if (requirements.size() == 1) return requirements.front();
         if (requirements.size() == 2)
-            return requirements.front() + soa::i18n::translate(" and ") + requirements.back();
+            return soa::i18n::translate("%1 and %2")
+                .arg(requirements.front(), requirements.back());
         QStringList leading = requirements;
         const QString last = leading.takeLast();
-        return leading.join(QStringLiteral(", ")) + soa::i18n::translate(", and ") + last;
+        return soa::i18n::translate("%1, and %2")
+            .arg(leading.join(QStringLiteral(", ")), last);
     }
 }
 

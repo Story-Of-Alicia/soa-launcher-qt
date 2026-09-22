@@ -21,6 +21,7 @@
 namespace
 {
     constexpr auto k_text_source = "soa_i18n_text_source";
+    constexpr auto k_text_uppercase = "soa_i18n_text_uppercase";
     constexpr auto k_window_title_source = "soa_i18n_window_title_source";
     constexpr auto k_tool_tip_source = "soa_i18n_tool_tip_source";
     constexpr auto k_status_tip_source = "soa_i18n_status_tip_source";
@@ -183,7 +184,14 @@ namespace soa::i18n
         apply_property(object, "statusTip", k_status_tip_source);
         apply_property(object, "accessibleName", k_accessible_name_source);
         apply_property(object, "accessibleDescription", k_accessible_description_source);
-        apply_property(object, "text", k_text_source);
+        const QVariant text_source = object->property(k_text_source);
+        if (text_source.isValid())
+        {
+            QString text = detail::translated(text_source.toString());
+            if (object->property(k_text_uppercase).toBool())
+                text = text.toUpper();
+            object->setProperty("text", text);
+        }
         apply_property(object, "title", k_group_title_source);
         apply_property(object, "placeholderText", k_placeholder_source);
 

@@ -43,7 +43,6 @@ set_target_properties(soa_launcher PROPERTIES
 )
 
 set(SOA_TRANSLATION_FILES
-        "${SOA_ROOT_DIR}/translations/soa_launcher_en.ts"
         "${SOA_ROOT_DIR}/translations/soa_launcher_nb.ts"
         "${SOA_ROOT_DIR}/translations/soa_launcher_nl.ts"
 )

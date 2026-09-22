@@ -125,12 +125,14 @@ namespace
             .arg(game_name, required_action);
     }
 
-    void set_dynamic_text(QLabel* label, const QString& source)
+    void set_dynamic_text(QLabel* label, const QString& source, const bool uppercase = false)
     {
         if (!label)
             return;
         label->setProperty("soa_i18n_text_source", source);
-        label->setText(soa::i18n::translate(source));
+        label->setProperty("soa_i18n_text_uppercase", uppercase);
+        const QString translated = soa::i18n::translate(source);
+        label->setText(uppercase ? translated.toUpper() : translated);
     }
 }
 
@@ -533,7 +535,7 @@ void AliciaChooser::setup_signedin_state()
         soa::ui::assets::images[soa::ui::assets::Image::DiscordMark].scaled(
             signed_in_icon->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
-    signed_in_label = new QLabel("SIGNED IN", this);
+    signed_in_label = new QLabel(this);
     signed_in_label->setTextFormat(Qt::PlainText);
     signed_in_label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     signed_in_label->setGeometry(soa::ui::layout::alicia_chooser::signed_in_text(w));
@@ -554,7 +556,7 @@ void AliciaChooser::setup_signedin_state()
     sign_out_font.setWeight(QFont::Bold);
     sign_out_font.setUnderline(true);
     sign_out_button->setFont(sign_out_font);
-    sign_out_button->setAccessibleName(QStringLiteral("Sign out"));
+    sign_out_button->setAccessibleName(soa::i18n::translate("Sign out"));
     connect(sign_out_button, &QPushButton::clicked, this, [this]()
     {
         if (current_stage == Stage::Launching || current_stage == Stage::Running)
@@ -715,14 +717,14 @@ void AliciaChooser::refresh_session_banner()
     QString source;
     if (current_stage == Stage::Launching)
     {
-        source = QStringLiteral("STARTING ALICIA…");
+        source = QStringLiteral("Starting Alicia…");
         signed_in_label->setAccessibleName(soa::i18n::translate("Alicia is starting"));
         enter_button->setAccessibleDescription(
             soa::i18n::translate("Disabled while Alicia is starting"));
     }
     else if (current_stage == Stage::Running)
     {
-        source = QStringLiteral("ALICIA IS RUNNING");
+        source = QStringLiteral("Alicia is running");
         signed_in_label->setAccessibleName(soa::i18n::translate("Alicia is running"));
         enter_button->setAccessibleDescription(
             soa::i18n::translate("Disabled while Alicia is running"));
@@ -733,8 +735,8 @@ void AliciaChooser::refresh_session_banner()
             ? Config::instance().username().trimmed()
             : Config::instance().display_name().trimmed();
         source = account.isEmpty()
-            ? QStringLiteral("SIGNED IN")
-            : QStringLiteral("SIGNED IN AS %1").arg(account.toUpper());
+            ? QStringLiteral("Signed in")
+            : QStringLiteral("Signed in as %1").arg(account);
         signed_in_label->setAccessibleName(
             account.isEmpty() ? soa::i18n::translate("Signed in")
                               : soa::i18n::translate("Signed in as %1").arg(account));
@@ -742,10 +744,14 @@ void AliciaChooser::refresh_session_banner()
             soa::i18n::translate("Start the selected Alicia playtest"));
     }
 
-    set_dynamic_text(signed_in_label, source);
+    set_dynamic_text(signed_in_label, source, true);
     signed_in_label->setToolTip(signed_in_label->text().trimmed());
     if (sign_out_button)
-        sign_out_button->setText(soa::i18n::translate("SIGN OUT"));
+    {
+        sign_out_button->setProperty("soa_i18n_text_source", QStringLiteral("Sign out"));
+        sign_out_button->setProperty("soa_i18n_text_uppercase", true);
+        sign_out_button->setText(soa::i18n::translate("Sign out").toUpper());
+    }
 }
 
 void AliciaChooser::set_warning(const QString& message)

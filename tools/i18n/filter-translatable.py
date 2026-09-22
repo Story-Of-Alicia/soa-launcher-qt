@@ -27,6 +27,20 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
+TRANSLATION_CONTEXTS = (
+    "Launcher & Navigation",
+    "Home & Account",
+    "Setup & Rules",
+    "Game Installation & Repair",
+    "Game Launch & Session",
+    "Runtime & Compatibility",
+    "Network & Transfers",
+    "Launcher Updates",
+    "Settings",
+    "About & Credits",
+    "Logs & Diagnostics",
+)
+
 MACHINE_NAMES = {
     "WINEPREFIX", "WINEARCH", "WINEDEBUG", "WINEDLLOVERRIDES", "WINESERVER",
     "WINETRICKS", "WINEESYNC", "WINEMSYNC", "WINE_FULLSCREEN_FSR", "LD_PRELOAD",
@@ -62,12 +76,21 @@ KEEP = {
     "VERSION", "WARNING", "Normal", "English", "Norsk", "Nederlands",
 }
 
+NON_TRANSLATABLE_EXACT = {
+    "Discord", "Wine", "WINE", "Proton", "PROTON", "UMU", "Winetricks",
+    "Rosetta", "English", "Norsk", "Nederlands", "Story of Alicia",
+    "Story Of Alicia", "Story of Alicia Launcher", "Story Of Alicia Launcher",
+    "Story Of Alicia Playtest", "Game Porting Toolkit",
+    "Homebrew Wine", "WINEESYNC=1", "[earlier command output omitted]",
+    "[earlier detail omitted]\n", "\\1[REDACTED]",
+}
+
 WORD = re.compile(r"[A-Za-z]{3,}")
 PLACEHOLDER = re.compile(r"%\d+|%[a-z]")
 TAG = re.compile(r"<[^>]+>")
 CPP_STRING_PATTERN = r'(?:u8|u|U|L)?"(?:\\.|[^"\\])*"'
 TRANSLATE_LITERAL = re.compile(
-    rf'\b(?:util::)?i18n::translate\s*\(\s*((?:{CPP_STRING_PATTERN}\s*)+)\)',
+    rf'\b(?:(?:util|soa)::)?i18n::translate\s*\(\s*((?:{CPP_STRING_PATTERN}\s*)+)\)',
     re.S,
 )
 CPP_STRING = re.compile(CPP_STRING_PATTERN)
@@ -78,6 +101,8 @@ def classify(source: str) -> str | None:
     text = source.strip()
     if not text:
         return "empty"
+    if text in NON_TRANSLATABLE_EXACT:
+        return "proper name or technical literal"
     if text in KEEP or (len(text.split()) > 1 and text.upper() == text
                         and all(w in KEEP or w.isalpha() for w in text.split())):
         return None
@@ -136,15 +161,25 @@ def sources(text: str) -> list[str]:
     return [html.unescape(m) for m in re.findall(r"<source>(.*?)</source>", text, re.S)]
 
 
-def context_sources(text: str, context_name: str) -> set[str]:
+def categorized_sources(text: str) -> dict[str, set[str]]:
     root = ET.fromstring(text)
+    result = {name: set() for name in TRANSLATION_CONTEXTS}
+    unexpected = []
     for context in root.findall("context"):
-        if context.findtext("name") == context_name:
-            return {
-                message.findtext("source") or ""
-                for message in context.findall("message")
-            }
-    return set()
+        name = context.findtext("name") or ""
+        if name not in result:
+            unexpected.append(name)
+            continue
+        for message in context.findall("message"):
+            result[name].add(message.findtext("source") or "")
+    if unexpected:
+        raise ValueError(f"unexpected translation contexts: {', '.join(unexpected)}")
+    return result
+
+
+def all_categorized_sources(text: str) -> set[str]:
+    contexts = categorized_sources(text)
+    return set().union(*(contexts[name] for name in TRANSLATION_CONTEXTS))
 
 
 def literal_translation_sources(source_root: Path) -> dict[str, list[tuple[Path, int]]]:
@@ -164,6 +199,34 @@ def literal_translation_sources(source_root: Path) -> dict[str, list[tuple[Path,
                 parts.append(value)
             line = text.count("\n", 0, match.start()) + 1
             found["".join(parts)].append((path, line))
+    return found
+
+
+def runtime_translation_sources(source_root: Path) -> dict[str, list[tuple[Path, int]]]:
+    path = source_root / "i18n" / "TranslationCatalog.cpp"
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    marker = "static const QStringList templates {"
+    start = text.find(marker)
+    if start < 0:
+        return {}
+    end = text.find("        };", start)
+    if end < 0:
+        return {}
+    block = text[start:end]
+    found: dict[str, list[tuple[Path, int]]] = defaultdict(list)
+    for match in re.finditer(rf"QStringLiteral\s*\(\s*((?:{CPP_STRING_PATTERN}\s*)+)\)", block, re.S):
+        parts: list[str] = []
+        for token_match in CPP_STRING.finditer(match.group(1)):
+            token = re.sub(r"^(?:u8|u|U|L)", "", token_match.group(0))
+            value = ast.literal_eval(token)
+            if not isinstance(value, str):
+                raise ValueError(f"unexpected non-string literal in {path}")
+            parts.append(value)
+        source = "".join(parts)
+        line = text.count("\n", 0, start + match.start()) + 1
+        found[source].append((path, line))
     return found
 
 
@@ -208,27 +271,37 @@ def main() -> int:
             return 2
 
     if args.missing:
-        launcher_sets = {
-            path: context_sources(text, "Launcher")
-            for path, text in catalogues.items()
-        }
-        launcher_reference = next(iter(launcher_sets.values()))
-        for path, entries in launcher_sets.items():
-            if entries != launcher_reference:
-                only = entries ^ launcher_reference
-                print(
-                    f"error: {path.name} does not contain the same Launcher-context "
-                    f"sources as the others ({len(only)} differ)",
-                    file=sys.stderr,
-                )
-                return 2
+        categorized = {path: categorized_sources(text) for path, text in catalogues.items()}
+        reference_contexts = next(iter(categorized.values()))
+        for path, contexts in categorized.items():
+            for context_name in TRANSLATION_CONTEXTS:
+                entries = contexts[context_name]
+                expected = reference_contexts[context_name]
+                if entries != expected:
+                    only = entries ^ expected
+                    print(
+                        f"error: {path.name} does not contain the same {context_name!r} "
+                        f"sources as the others ({len(only)} differ)",
+                        file=sys.stderr,
+                    )
+                    return 2
+        launcher_reference = set().union(
+            *(reference_contexts[name] for name in TRANSLATION_CONTEXTS)
+        )
         locations = literal_translation_sources(args.source_root)
+        for source, refs in runtime_translation_sources(args.source_root).items():
+            locations[source].extend(refs)
+        locations = {
+            source: refs
+            for source, refs in locations.items()
+            if classify(source) is None
+        }
         missing = {source: refs for source, refs in locations.items()
                    if source not in launcher_reference}
         if not missing:
             print(
                 f"complete: {len(locations)} literal translation sources are "
-                "catalogued in the Launcher context"
+                "catalogued in the Qt Linguist category contexts"
             )
             return 0
         print(f"{len(missing)} literal translation sources are missing:", file=sys.stderr)
