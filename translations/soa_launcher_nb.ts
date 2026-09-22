@@ -3335,8 +3335,8 @@ Mangler: %1.</translation>
             <translation>STARTPROGRAMOPPDATERING KREVES</translation>
         </message>
         <message>
-            <source>LAUNCHER UPDATE AVAILABLE</source>
-            <translation>OPPDATERING TILGJENGELIG</translation>
+            <source>LAUNCHER UPDATES</source>
+            <translation>STARTPROGRAMOPPDATERINGER</translation>
         </message>
         <message>
             <source>Version %1 is available. You must update the launcher before continuing.</source>
@@ -3859,10 +3859,6 @@ Mangler: %1.</translation>
         <translation>Nedlastingsbanen for launcheroppdateringen er i konflikt med AppImage-filen som kjører.</translation>
     </message>
     <message>
-        <source>LAUNCHER VERSIONS</source>
-        <translation>LAUNCHERVERSJONER</translation>
-    </message>
-    <message>
         <source>Choose from up to three signed launcher releases.</source>
         <translation>Velg blant opptil tre signerte launcherversjoner.</translation>
     </message>
@@ -4084,6 +4080,38 @@ Mangler: %1.</translation>
         <message>
             <source>Yes</source>
             <translation>Ja</translation>
+        </message>
+        <message>
+            <source>SIGNED IN</source>
+            <translation>LOGGET INN</translation>
+        </message>
+        <message>
+            <source>SIGNED IN AS %1</source>
+            <translation>LOGGET INN SOM %1</translation>
+        </message>
+        <message>
+            <source>STARTING ALICIA…</source>
+            <translation>STARTER ALICIA…</translation>
+        </message>
+        <message>
+            <source>ALICIA IS RUNNING</source>
+            <translation>ALICIA KJØRER</translation>
+        </message>
+        <message>
+            <source>SIGN OUT</source>
+            <translation>LOGG UT</translation>
+        </message>
+        <message>
+            <source>Sign out</source>
+            <translation>Logg ut</translation>
+        </message>
+        <message>
+            <source>Sign out of Discord</source>
+            <translation>Logg ut av Discord</translation>
+        </message>
+        <message>
+            <source>Sign out is unavailable while Alicia is active</source>
+            <translation>Du kan ikke logge ut mens Alicia er aktiv</translation>
         </message>
     </context>
 </TS>

@@ -391,11 +391,18 @@ void MainWindow::setup_launcher_updates()
     {
         if (launcher_menu_controller)
             launcher_menu_controller->set_manage_versions_enabled(true);
+        const QStringList versions = launcher_update_manager->available_versions();
+        QString selected_version = launcher_update_manager->available_version();
+        if (!versions.isEmpty()
+            && launcher_update_manager->select_version(versions.constFirst()))
+        {
+            selected_version = versions.constFirst();
+        }
         launcher_update->set_versions(
             soa::update::LauncherUpdateManager::current_version(),
-            launcher_update_manager->available_versions(), false);
+            versions, false);
         launcher_update->set_release(
-            launcher_update_manager->available_version(),
+            selected_version,
             launcher_update_manager->update_required(),
             launcher_update_manager->release_message());
         open_overlay(launcher_update);
@@ -406,11 +413,18 @@ void MainWindow::setup_launcher_updates()
     {
         if (launcher_menu_controller)
             launcher_menu_controller->set_manage_versions_enabled(true);
+        const QStringList versions = launcher_update_manager->available_versions();
+        QString selected_version = launcher_update_manager->available_version();
+        if (!versions.isEmpty()
+            && launcher_update_manager->select_version(versions.constFirst()))
+        {
+            selected_version = versions.constFirst();
+        }
         launcher_update->set_versions(
             soa::update::LauncherUpdateManager::current_version(),
-            launcher_update_manager->available_versions(), true);
+            versions, true);
         launcher_update->set_release(
-            launcher_update_manager->available_version(), false,
+            selected_version, false,
             launcher_update_manager->release_message());
         open_overlay(launcher_update);
     });

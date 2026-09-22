@@ -332,45 +332,42 @@ namespace soa::update
             return;
         }
 
-        if (result == soa_launcher_check_no_update)
+        if (manual_check)
         {
             reset_release();
-            if (manual_check)
+            if (!select_version(releases.constFirst().version))
             {
-                const bool selected = select_version(current_version())
-                    || select_version(releases.constFirst().version);
-                if (!selected)
-                {
-                    releases.clear();
-                    const QString reason = soa::i18n::translate(
-                        "No valid signed launcher releases could be found.");
-                    SPDLOG_WARN("launcher release selection failed: {}",
-                                reason.toStdString());
-                    emit manual_check_failed(reason);
-                    return;
-                }
-                emit catalogue_ready();
+                releases.clear();
+                const QString reason = soa::i18n::translate(
+                    "No valid signed launcher releases could be found.");
+                SPDLOG_WARN("launcher release selection failed: {}",
+                            reason.toStdString());
+                emit manual_check_failed(reason);
+                return;
             }
-            else
-            {
-                emit no_update_available();
-            }
+            emit catalogue_ready();
             return;
         }
 
-        release_version = std::move(version);
-        minimum_version = std::move(minimum);
-        message = std::move(release_message);
-        package_kind = std::move(kind);
-        package_file_name = std::move(file_name);
-        package_url = std::move(url);
-        expected_sha256 = std::move(sha256);
-        expected_size = size;
-        required = is_required;
-        if (manual_check)
-            emit catalogue_ready();
-        else
-            emit update_found();
+        if (result == soa_launcher_check_no_update)
+        {
+            reset_release();
+            emit no_update_available();
+            return;
+        }
+
+        reset_release();
+        if (!select_version(releases.constFirst().version))
+        {
+            releases.clear();
+            const QString reason = soa::i18n::translate(
+                "No valid signed launcher releases could be found.");
+            SPDLOG_WARN("launcher release selection failed: {}",
+                        reason.toStdString());
+            emit check_failed(reason);
+            return;
+        }
+        emit update_found();
     }
 
     bool LauncherUpdateManager::select_version(const QString& version)

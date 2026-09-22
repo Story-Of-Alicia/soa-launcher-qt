@@ -456,8 +456,6 @@ final class LauncherUpdateService: @unchecked Sendable
 
     private func loadCatalogue(from manifestURL: URL) async throws -> LauncherUpdateSelection
     {
-        let manifestData = try await fetchSignedJSON(manifestURL, maximumBytes: 64 * 1024)
-        let selected = try parseManifest(manifestData)
         guard manifestURL.lastPathComponent == "manifest.json" else {
             throw LauncherServiceFailure(
                 soa_launcher_error_invalid_configuration,
@@ -467,16 +465,13 @@ final class LauncherUpdateService: @unchecked Sendable
             .appendingPathComponent("versions.json")
         let historyData = try await fetchSignedJSON(historyURL, maximumBytes: 1024 * 1024)
         let parsedCatalogue = try parseCatalogue(historyData)
-        guard parsedCatalogue.releases.contains(where: {
-            $0.version == selected.version && $0.packageURLs.contains(selected.packageURL)
-                && $0.sha256 == selected.sha256 && $0.expectedSize == selected.expectedSize
-        }) else {
+        guard let latest = parsedCatalogue.releases.first else {
             throw LauncherServiceFailure(
                 soa_launcher_error_invalid_release,
-                "The latest launcher release is missing from signed release history")
+                "No signed launcher release is available")
         }
         storeCatalogue(parsedCatalogue.releases, json: parsedCatalogue.json)
-        return selected
+        return latest
     }
 
     private func fetchSignedJSON(_ url: URL, maximumBytes: Int) async throws -> Data

@@ -3335,8 +3335,8 @@ Missing: %1.</translation>
             <translation>LAUNCHER UPDATE REQUIRED</translation>
         </message>
         <message>
-            <source>LAUNCHER UPDATE AVAILABLE</source>
-            <translation>LAUNCHER UPDATE AVAILABLE</translation>
+            <source>LAUNCHER UPDATES</source>
+            <translation>LAUNCHER UPDATES</translation>
         </message>
         <message>
             <source>Version %1 is available. You must update the launcher before continuing.</source>
@@ -3857,10 +3857,6 @@ Missing: %1.</translation>
     <message>
         <source>The launcher update download path conflicts with the running AppImage.</source>
         <translation>The launcher update download path conflicts with the running AppImage.</translation>
-    </message>
-    <message>
-        <source>LAUNCHER VERSIONS</source>
-        <translation>LAUNCHER VERSIONS</translation>
     </message>
     <message>
         <source>Choose from up to three signed launcher releases.</source>

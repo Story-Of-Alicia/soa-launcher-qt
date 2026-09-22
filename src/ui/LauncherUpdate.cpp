@@ -30,6 +30,14 @@ namespace
         return soa::ui::layout::scaled(source, window_size).translated(box_rect(window_size).topLeft());
     }
 
+    void set_translated_label(QLabel* label, const QString& source)
+    {
+        if (!label)
+            return;
+        label->setProperty("soa_i18n_text_source", source);
+        label->setText(soa::i18n::translate(source));
+    }
+
     void fit_label(QLabel* label, const int base_size, const int minimum_size)
     {
         if (!label)
@@ -140,7 +148,7 @@ void LauncherUpdate::setup_controls()
     progress_label->setStyleSheet(QStringLiteral("color:#4F1717; background:transparent;"));
 
     update_button = soa::ui::simple_utils::make_flat_button(this);
-    update_button->setGeometry(local_rect(w, {242, 254, 304, 56}));
+    update_button->setGeometry(local_rect(w, {318, 254, 216, 44}));
     update_button->setIconSize(update_button->size());
     update_button->setProperty("soa_button_stretch_asset", true);
     update_button->installEventFilter(this);
@@ -160,12 +168,12 @@ void LauncherUpdate::setup_controls()
     update_button_label->raise();
 
     cancel_button = soa::ui::simple_utils::make_flat_button(this);
-    cancel_button->setGeometry(local_rect(w, {86, 260, 174, 36}));
+    cancel_button->setGeometry(local_rect(w, {86, 254, 216, 44}));
     cancel_button->setIconSize(cancel_button->size());
     cancel_button->setProperty("soa_button_stretch_asset", true);
     cancel_button->installEventFilter(this);
     QFont cancel_font = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileExtraBlack];
-    cancel_font.setPixelSize(soa::ui::layout::scaled(12, w));
+    cancel_font.setPixelSize(soa::ui::layout::scaled(14, w));
     cancel_font.setWeight(QFont::Black);
     soa::ui::simple_utils::add_button_text(
         cancel_button, soa::ui::assets::Button::Cancel,
@@ -209,13 +217,14 @@ void LauncherUpdate::set_versions(const QString& installed_version,
     version_combo->blockSignals(true);
     version_combo->clear();
     version_combo->addItems(versions);
-    const int selected = version_combo->findText(release_version);
-    if (selected >= 0)
-        version_combo->setCurrentIndex(selected);
-    else if (version_combo->count() > 0)
+    if (version_combo->count() > 0)
     {
         version_combo->setCurrentIndex(0);
-        release_version = version_combo->currentText();
+        release_version = version_combo->currentText().trimmed();
+    }
+    else
+    {
+        release_version.clear();
     }
     version_combo->blockSignals(false);
     refresh_layout();
@@ -225,9 +234,22 @@ void LauncherUpdate::set_versions(const QString& installed_version,
 void LauncherUpdate::set_release(const QString& version, const bool required,
                                  const QString& message)
 {
-    release_version = version.trimmed();
-    if (release_version.isEmpty() && version_combo && version_combo->count() > 0)
+    const QString requested_version = version.trimmed();
+    if (version_combo && version_combo->count() > 0)
+    {
+        const int requested_index = version_combo->findText(requested_version);
+        if (requested_index >= 0)
+        {
+            version_combo->blockSignals(true);
+            version_combo->setCurrentIndex(requested_index);
+            version_combo->blockSignals(false);
+        }
         release_version = version_combo->currentText().trimmed();
+    }
+    else
+    {
+        release_version = requested_version;
+    }
     required_update = required;
     release_message = message.trimmed();
     downloading_update = false;
@@ -243,7 +265,7 @@ void LauncherUpdate::set_downloading(const bool downloading)
     if (downloading_update)
     {
         progress_fraction = 0.0;
-        progress_label->setText(soa::i18n::translate("Preparing download..."));
+        set_translated_label(progress_label, QStringLiteral("Preparing download..."));
     }
     refresh_layout();
     retranslate_content();
@@ -260,16 +282,20 @@ void LauncherUpdate::set_progress(const qint64 received, const qint64 total)
                                    1.0);
         const double received_mb = static_cast<double>(received) / (1024.0 * 1024.0);
         const double total_mb = static_cast<double>(total) / (1024.0 * 1024.0);
-        progress_label->setText(soa::i18n::translate("%1 MB of %2 MB")
-                                    .arg(QString::number(received_mb, 'f', 1),
-                                         QString::number(total_mb, 'f', 1)));
+        set_translated_label(
+            progress_label,
+            QStringLiteral("%1 MB of %2 MB")
+                .arg(QString::number(received_mb, 'f', 1),
+                     QString::number(total_mb, 'f', 1)));
     }
     else
     {
         progress_fraction = 0.0;
         const double received_mb = static_cast<double>(received) / (1024.0 * 1024.0);
-        progress_label->setText(soa::i18n::translate("%1 MB downloaded")
-                                    .arg(QString::number(received_mb, 'f', 1)));
+        set_translated_label(
+            progress_label,
+            QStringLiteral("%1 MB downloaded")
+                .arg(QString::number(received_mb, 'f', 1)));
     }
     update();
 }
@@ -279,7 +305,7 @@ void LauncherUpdate::set_starting_installer()
     downloading_update = false;
     starting_installer = true;
     progress_fraction = 1.0;
-    progress_label->setText(soa::i18n::translate("Starting installer..."));
+    set_translated_label(progress_label, QStringLiteral("Starting installer..."));
     refresh_layout();
     retranslate_content();
 }
@@ -295,15 +321,20 @@ void LauncherUpdate::refresh_layout()
     version_combo->setVisible(catalogue_mode && !progress_visible);
     const bool cancel_visible = !required_update && !starting_installer;
     const int button_y = catalogue_mode ? 258 : 228;
+    constexpr int button_width = 216;
+    constexpr int button_height = 44;
+    constexpr int button_gap = 16;
+    constexpr int pair_left = 86;
+    constexpr int centered_left = 202;
     cancel_button->setGeometry(local_rect(w, downloading_update
-        ? QRect{223, 264, 174, 36}
-        : QRect{86, button_y + 4, 174, 36}));
+        ? QRect{centered_left, 264, button_width, button_height}
+        : QRect{pair_left, button_y, button_width, button_height}));
     cancel_button->setIconSize(cancel_button->size());
     cancel_button->setVisible(cancel_visible);
     cancel_button->setEnabled(cancel_visible);
     update_button->setGeometry(local_rect(w, cancel_visible
-        ? QRect{276, button_y, 258, 44}
-        : QRect{181, button_y, 258, 44}));
+        ? QRect{pair_left + button_width + button_gap, button_y, button_width, button_height}
+        : QRect{centered_left, button_y, button_width, button_height}));
     update_button->setIconSize(update_button->size());
     update_button_label->setGeometry(update_button->rect());
     update_button->setVisible(!progress_visible);
@@ -321,64 +352,66 @@ void LauncherUpdate::refresh_layout()
 
 void LauncherUpdate::retranslate_content()
 {
-    QString shown_version = release_version.trimmed();
-    if (shown_version.isEmpty() && version_combo)
+    QString shown_version;
+    if (version_combo && version_combo->count() > 0)
         shown_version = version_combo->currentText().trimmed();
+    if (shown_version.isEmpty())
+        shown_version = release_version.trimmed();
     if (shown_version.isEmpty())
         shown_version = current_version.trimmed();
     if (shown_version.isEmpty())
         shown_version = QCoreApplication::applicationVersion().trimmed();
+
+    QString title_source;
+    QString message_source;
+    QString details_source;
+
     if (starting_installer)
     {
-        title_label->setText(soa::i18n::translate("STARTING LAUNCHER UPDATE"));
-        message_label->setText(soa::i18n::translate(
-            "The installer is ready. The launcher will close automatically."));
-        details_label->setText(soa::i18n::translate(
-            "Complete the installer, then open Story of Alicia again."));
+        title_source = QStringLiteral("STARTING LAUNCHER UPDATE");
+        message_source = QStringLiteral(
+            "The installer is ready. The launcher will close automatically.");
+        details_source = QStringLiteral(
+            "Complete the installer, then open Story of Alicia again.");
         set_update_button_text(QStringLiteral("STARTING..."));
     }
     else if (downloading_update)
     {
-        title_label->setText(soa::i18n::translate("DOWNLOADING LAUNCHER UPDATE"));
-        message_label->setText(soa::i18n::translate("Downloading version %1...")
-                                   .arg(shown_version));
-        details_label->setText(soa::i18n::translate(
-            "The update is verified before it is installed."));
+        title_source = QStringLiteral("DOWNLOADING LAUNCHER UPDATE");
+        message_source = QStringLiteral("Downloading version %1...").arg(shown_version);
+        details_source = QStringLiteral("The update is verified before it is installed.");
         set_update_button_text(QStringLiteral("DOWNLOADING..."));
     }
     else
     {
-        title_label->setText(soa::i18n::translate(catalogue_mode
-            ? "LAUNCHER VERSIONS"
-            : required_update ? "LAUNCHER UPDATE REQUIRED"
-                              : "LAUNCHER UPDATE AVAILABLE"));
+        title_source = required_update
+            ? QStringLiteral("LAUNCHER UPDATE REQUIRED")
+            : QStringLiteral("LAUNCHER UPDATES");
         if (catalogue_mode)
         {
-            message_label->setText(soa::i18n::translate(
-                "Choose from up to three signed launcher releases."));
+            message_source = QStringLiteral("Choose from up to three signed launcher releases.");
         }
         else if (required_update)
         {
-            message_label->setText(soa::i18n::translate(
-                "Version %1 is available. You must update the launcher before continuing.",
-                shown_version));
+            message_source = QStringLiteral(
+                "Version %1 is available. You must update the launcher before continuing.")
+                .arg(shown_version);
         }
         else
         {
-            message_label->setText(soa::i18n::translate(
-                "Version %1 is available for the launcher.", shown_version));
+            message_source = QStringLiteral("Version %1 is available for the launcher.")
+                .arg(shown_version);
         }
 #if defined(Q_OS_MACOS)
-        const QString default_details = soa::i18n::translate(
+        const QString default_details = QStringLiteral(
             "The installer will open automatically. The launcher will close.");
 #else
-        const QString default_details = soa::i18n::translate(
+        const QString default_details = QStringLiteral(
             "The AppImage will update and restart automatically.");
 #endif
-        details_label->setText(catalogue_mode
-            ? soa::i18n::translate("Installed: %1 · Selected: %2")
-                .arg(current_version, shown_version)
-            : release_message.isEmpty() ? default_details : release_message);
+        details_source = catalogue_mode
+            ? QStringLiteral("Installed: %1 · Selected: %2").arg(current_version, shown_version)
+            : release_message.isEmpty() ? default_details : release_message;
         if (!catalogue_mode)
             set_update_button_text(QStringLiteral("UPDATE NOW"));
         else if (shown_version == current_version)
@@ -389,6 +422,10 @@ void LauncherUpdate::retranslate_content()
         else
             set_update_button_text(QStringLiteral("UPDATE NOW"));
     }
+
+    set_translated_label(title_label, title_source);
+    set_translated_label(message_label, message_source);
+    set_translated_label(details_label, details_source);
 
     fit_label(title_label, soa::ui::layout::scaled(25, window()->size()), qMax(12, soa::ui::layout::scaled(18, window()->size())));
     fit_label(message_label, soa::ui::layout::scaled(16, window()->size()), qMax(9, soa::ui::layout::scaled(12, window()->size())));
@@ -403,7 +440,7 @@ void LauncherUpdate::retranslate_content()
 void LauncherUpdate::set_update_button_text(const QString& source)
 {
     update_button_source = source;
-    update_button_label->setText(soa::i18n::translate(source));
+    set_translated_label(update_button_label, source);
     fit_label(update_button_label, soa::ui::layout::scaled(21, window()->size()), qMax(10, soa::ui::layout::scaled(14, window()->size())));
 }
 

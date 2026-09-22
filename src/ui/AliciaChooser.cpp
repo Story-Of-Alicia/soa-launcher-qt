@@ -550,7 +550,7 @@ void AliciaChooser::setup_signedin_state()
     sign_out_button->setGeometry(soa::ui::layout::alicia_chooser::sign_out(w));
     sign_out_button->setStyleSheet(sign_out_link_style(w));
     QFont sign_out_font = soa::ui::assets::fonts[soa::ui::assets::Font::Inter];
-    sign_out_font.setPixelSize(qMax(8, soa::ui::layout::scaled(11, w)));
+    sign_out_font.setPixelSize(qMax(8, soa::ui::layout::scaled(9, w)));
     sign_out_font.setWeight(QFont::Bold);
     sign_out_font.setUnderline(true);
     sign_out_button->setFont(sign_out_font);
