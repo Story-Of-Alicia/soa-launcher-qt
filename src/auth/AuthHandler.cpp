@@ -28,8 +28,36 @@ namespace
 
     constexpr int k_login_timeout_ms = 10 * 60 * 1000;
     constexpr int k_duplicate_callback_window_ms = 30000;
+    constexpr quint64 k_discord_epoch_ms = 1420070400000ULL;
+    constexpr quint64 k_earliest_discord_user_ms = 1431475200000ULL;
+    constexpr qint64 k_allowed_clock_skew_ms = 5 * 60 * 1000;
 
+    bool is_plausible_discord_snowflake(const QString& value, const QDateTime& now)
+    {
+        if (value.isEmpty() || value.size() > 20)
+            return false;
 
+        for (const QChar character : value)
+        {
+            if (character < QLatin1Char('0') || character > QLatin1Char('9'))
+                return false;
+        }
+
+        bool ok = false;
+        const quint64 snowflake = value.toULongLong(&ok, 10);
+        if (!ok)
+            return false;
+
+        const quint64 created_at_ms = (snowflake >> 22U) + k_discord_epoch_ms;
+        if (created_at_ms < k_earliest_discord_user_ms)
+            return false;
+
+        const qint64 now_ms = now.toMSecsSinceEpoch();
+        if (now_ms < 0)
+            return false;
+
+        return created_at_ms <= static_cast<quint64>(now_ms + k_allowed_clock_skew_ms);
+    }
 }
 
 AuthHandler::AuthHandler(QObject* parent)
@@ -98,31 +126,16 @@ void AuthHandler::cancel_login()
 bool AuthHandler::callback_is_expected(const QUrl& url) const
 {
     if (!url.isValid()
-        || url.scheme().compare(QStringLiteral("soa"), Qt::CaseInsensitive) != 0)
+        || url.scheme().compare(QStringLiteral("soa"), Qt::CaseInsensitive) != 0
+        || url.host().compare(QStringLiteral("launcher"), Qt::CaseInsensitive) != 0
+        || !url.userInfo().isEmpty()
+        || url.port(-1) != -1)
     {
         return false;
     }
 
-    const QString host = url.host().trimmed().toLower();
-    QString path = url.path().trimmed().toLower();
-    while (path.startsWith(QLatin1Char('/')))
-        path.remove(0, 1);
-
-    if (host == QStringLiteral("launcher")
-        || host == QStringLiteral("auth")
-        || host == QStringLiteral("login"))
-    {
-        return path.isEmpty()
-            || path == QStringLiteral("callback")
-            || path == QStringLiteral("auth")
-            || path == QStringLiteral("login");
-    }
-
-    return host.isEmpty()
-        && (path == QStringLiteral("launcher")
-            || path == QStringLiteral("callback")
-            || path == QStringLiteral("auth")
-            || path == QStringLiteral("login"));
+    const QString path = url.path();
+    return path.isEmpty() || path == QStringLiteral("/");
 }
 
 void AuthHandler::handle_url(const QString& url)
@@ -213,11 +226,10 @@ void AuthHandler::handle_url(const QString& url)
 
     if (user.isEmpty() || token.isEmpty() || user.size() > 256 || token.size() > 8192
         || username.size() > 256 || containsUnsafeCredentialCharacter(user)
-        || containsUnsafeCredentialCharacter(token) || containsUnsafeCredentialCharacter(username))
+        || containsUnsafeCredentialCharacter(token) || containsUnsafeCredentialCharacter(username)
+        || !is_plausible_discord_snowflake(user, now))
     {
-        SPDLOG_ERROR("soa login callback contained missing or oversized credentials");
-        reset_pending_login();
-        fail(QStringLiteral("The login response was malformed."));
+        SPDLOG_WARN("ignored soa login callback with malformed credentials");
         return;
     }
 
