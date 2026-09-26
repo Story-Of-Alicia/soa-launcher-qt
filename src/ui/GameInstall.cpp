@@ -189,6 +189,7 @@ void GameInstall::start_install()
     }
 
     download->show_over(this);
+    download->start_download();
 }
 
 void GameInstall::paint_content(QPainter& painter)

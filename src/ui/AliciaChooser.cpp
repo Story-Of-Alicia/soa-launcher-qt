@@ -125,14 +125,15 @@ namespace
             .arg(game_name, required_action);
     }
 
-    void set_dynamic_text(QLabel* label, const QString& source, const bool uppercase = false)
+    void set_dynamic_text(QLabel* label, const QString& source)
     {
         if (!label)
             return;
         label->setProperty("soa_i18n_text_source", source);
-        label->setProperty("soa_i18n_text_uppercase", uppercase);
-        const QString translated = soa::i18n::translate(source);
-        label->setText(uppercase ? translated.toUpper() : translated);
+        QString text = soa::i18n::translate(source);
+        if (label->property("soa_i18n_text_uppercase").toBool())
+            text = text.toUpper();
+        label->setText(text);
     }
 }
 
@@ -222,6 +223,11 @@ AliciaChooser::State AliciaChooser::state_for(const Stage stage)
     {
         case Stage::NeedsAuth:      return State::Login;
         case Stage::Authenticating: return State::Waiting;
+        case Stage::NeedsUpdate:
+            return State::Download;
+        case Stage::CheckingUpdate:
+        case Stage::Updating:
+            return Config::instance().has_auth() ? State::SignedIn : State::Download;
         case Stage::Launching:
         case Stage::Running:
         case Stage::Ready:          return State::SignedIn;
@@ -535,7 +541,8 @@ void AliciaChooser::setup_signedin_state()
         soa::ui::assets::images[soa::ui::assets::Image::DiscordMark].scaled(
             signed_in_icon->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
-    signed_in_label = new QLabel(this);
+    signed_in_label = new QLabel("Signed in", this);
+    signed_in_label->setProperty("soa_i18n_text_uppercase", true);
     signed_in_label->setTextFormat(Qt::PlainText);
     signed_in_label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     signed_in_label->setGeometry(soa::ui::layout::alicia_chooser::signed_in_text(w));
@@ -547,6 +554,8 @@ void AliciaChooser::setup_signedin_state()
         "QLabel { color: #4F1717; background: transparent; }"));
 
     sign_out_button = new QPushButton(this);
+    sign_out_button->setProperty("soa_i18n_text_source", QStringLiteral("Sign out"));
+    sign_out_button->setProperty("soa_i18n_text_uppercase", true);
     sign_out_button->setFlat(true);
     sign_out_button->setCursor(Qt::PointingHandCursor);
     sign_out_button->setGeometry(soa::ui::layout::alicia_chooser::sign_out(w));
@@ -556,7 +565,7 @@ void AliciaChooser::setup_signedin_state()
     sign_out_font.setWeight(QFont::Bold);
     sign_out_font.setUnderline(true);
     sign_out_button->setFont(sign_out_font);
-    sign_out_button->setAccessibleName(soa::i18n::translate("Sign out"));
+    sign_out_button->setAccessibleName(QStringLiteral("Sign out"));
     connect(sign_out_button, &QPushButton::clicked, this, [this]()
     {
         if (current_stage == Stage::Launching || current_stage == Stage::Running)
@@ -603,7 +612,7 @@ void AliciaChooser::setup_signedin_state()
             config.set_rules_accepted(true);
         }
 
-        shell->run_game(config.username(), config.token());
+        emit launch_requested();
     });
 }
 
@@ -736,7 +745,7 @@ void AliciaChooser::refresh_session_banner()
             : Config::instance().display_name().trimmed();
         source = account.isEmpty()
             ? QStringLiteral("Signed in")
-            : QStringLiteral("Signed in as %1").arg(account);
+            : QStringLiteral("Signed in as %1").arg(account.toUpper());
         signed_in_label->setAccessibleName(
             account.isEmpty() ? soa::i18n::translate("Signed in")
                               : soa::i18n::translate("Signed in as %1").arg(account));
@@ -744,14 +753,10 @@ void AliciaChooser::refresh_session_banner()
             soa::i18n::translate("Start the selected Alicia playtest"));
     }
 
-    set_dynamic_text(signed_in_label, source, true);
+    set_dynamic_text(signed_in_label, source);
     signed_in_label->setToolTip(signed_in_label->text().trimmed());
     if (sign_out_button)
-    {
-        sign_out_button->setProperty("soa_i18n_text_source", QStringLiteral("Sign out"));
-        sign_out_button->setProperty("soa_i18n_text_uppercase", true);
         sign_out_button->setText(soa::i18n::translate("Sign out").toUpper());
-    }
 }
 
 void AliciaChooser::set_warning(const QString& message)

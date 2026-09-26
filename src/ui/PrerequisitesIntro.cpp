@@ -302,15 +302,15 @@ QStringList PrerequisitesIntro::missing_requirements(const soa::runtime::Runtime
     if (!best_runtime(type))
     {
         missing << (type == soa::runtime::RuntimeType::Proton
-                        ? soa::i18n::translate("Proton")
-                        : soa::i18n::translate("Wine"));
+                        ? QStringLiteral("Proton")
+                        : QStringLiteral("Wine"));
     }
 #if !defined(Q_OS_MACOS)
     if (type == soa::runtime::RuntimeType::Proton && !umu_ready)
-        missing << soa::i18n::translate("UMU");
+        missing << QStringLiteral("UMU");
 #endif
     if (!winetricks_ready)
-        missing << soa::i18n::translate("Winetricks");
+        missing << QStringLiteral("Winetricks");
     return missing;
 }
 
@@ -383,8 +383,8 @@ void PrerequisitesIntro::update_recommendation()
 
     const auto runtime_type = recommended_runtime();
     const QString runtime_label = runtime_type == soa::runtime::RuntimeType::Proton
-        ? soa::i18n::translate("PROTON")
-        : soa::i18n::translate("WINE");
+        ? QStringLiteral("PROTON")
+        : QStringLiteral("WINE");
 
     QString blocker;
     if (!profile_ready(&blocker))

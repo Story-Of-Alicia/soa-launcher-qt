@@ -190,44 +190,6 @@ extension Courier
         }
     }
 
-    private func digestOfFile<H: StreamingFileHasher>(
-        at path: String,
-        hasher: inout H,
-        progress: ((UInt64) -> Void)? = nil) throws -> String?
-    {
-        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
-        defer { try? handle.close() }
-
-        var processed: UInt64 = 0
-        var nextReport: UInt64 = 8 * 1024 * 1024
-        while true {
-            try Task.checkCancellation()
-            let chunk = handle.readData(ofLength: 1 << 16)
-            if chunk.isEmpty { break }
-            hasher.update(chunk)
-            processed += UInt64(chunk.count)
-            if processed >= nextReport {
-                progress?(processed)
-                nextReport = processed + 8 * 1024 * 1024
-            }
-        }
-        progress?(processed)
-        return hasher.finalizeHex()
-    }
-
-    func manifestHashOfFile(at path: String, expectedHash: String,
-                            progress: ((UInt64) -> Void)? = nil) throws -> String?
-    {
-        if expectedHash.count == 64 {
-            var hasher = SHA256()
-            return try digestOfFile(
-                at: path, hasher: &hasher, progress: progress)
-        }
-        var hasher = MD5()
-        return try digestOfFile(
-            at: path, hasher: &hasher, progress: progress)
-    }
-
     func tempPath(for destination: URL) -> URL
     {
         destination.appendingPathExtension("download")

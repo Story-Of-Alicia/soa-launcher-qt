@@ -122,5 +122,41 @@ struct CourierPathTests
         expectThrows("symlink escape") {
             _ = try safeDestination(root: root, relativePath: "linked/file.bin")
         }
+
+        let expectedFile = root.appendingPathComponent("data/game.bin")
+        try FileManager.default.createDirectory(
+            at: expectedFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: expectedFile)
+        try Data().write(to: root.appendingPathComponent("version.json"))
+        try Data().write(to: root.appendingPathComponent("alice.cfg"))
+        let internalDirectory = root.appendingPathComponent(".soa-update-staging", isDirectory: true)
+        try FileManager.default.createDirectory(at: internalDirectory, withIntermediateDirectories: true)
+        try Data().write(to: internalDirectory.appendingPathComponent("temporary.bin"))
+        try Data().write(to: root.appendingPathComponent("mod.dll"))
+        let fakeInternal = root.appendingPathComponent(".soa-cheat", isDirectory: true)
+        try FileManager.default.createDirectory(at: fakeInternal, withIntermediateDirectories: true)
+        try Data().write(to: fakeInternal.appendingPathComponent("mod.dll"))
+
+        let unexpected = try unexpectedInstallFiles(
+            installRoot: root, expectedRelativePaths: ["data/game.bin"])
+        guard unexpected.contains("mod.dll") && unexpected.contains("linked")
+                && unexpected.contains(".soa-cheat/mod.dll")
+                && !unexpected.contains("version.json")
+                && !unexpected.contains("alice.cfg")
+                && !unexpected.contains("data/game.bin")
+                && !unexpected.contains(".soa-update-staging/temporary.bin") else {
+            fatalError("Unexpected-file scan did not enforce the install allowlist: \(unexpected)")
+        }
+
+        let dxvkRoot = temporary.appendingPathComponent("dxvk", isDirectory: true)
+        try FileManager.default.createDirectory(at: dxvkRoot, withIntermediateDirectories: true)
+        for name in ["d3d9.dll", "d3dx9_31.dll", "d3dx9_31.dll.bak"] {
+            try Data().write(to: dxvkRoot.appendingPathComponent(name))
+        }
+        let dxvkUnexpected = try unexpectedInstallFiles(
+            installRoot: dxvkRoot, expectedRelativePaths: ["d3dx9_31.dll.bak"])
+        guard dxvkUnexpected.isEmpty else {
+            fatalError("DXVK compatibility files were incorrectly rejected: \(dxvkUnexpected)")
+        }
     }
 }

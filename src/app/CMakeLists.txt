@@ -51,12 +51,14 @@ if(Qt6_VERSION VERSION_GREATER_EQUAL "6.9")
     qt_add_translations(soa_launcher
             TS_FILES ${SOA_TRANSLATION_FILES}
             RESOURCE_PREFIX "/i18n"
+            LRELEASE_OPTIONS -nounfinished
             QT_TRANSLATION_CATALOGS qtbase
     )
 else()
     qt_add_translations(soa_launcher
             TS_FILES ${SOA_TRANSLATION_FILES}
             RESOURCE_PREFIX "/i18n"
+            LRELEASE_OPTIONS -nounfinished
     )
 endif()
 

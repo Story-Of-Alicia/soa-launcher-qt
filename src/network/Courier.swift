@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 import Soa_Courier
 
-final class Courier
+final class Courier: @unchecked Sendable
 {
     let cdnBaseURL: String
     let onProgress: courier_progress_cb
@@ -34,7 +34,7 @@ final class Courier
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60 * 60
         config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        config.httpMaximumConnectionsPerHost = 2
+        config.httpMaximumConnectionsPerHost = 4
         self.sessionConfiguration = config
     }
 

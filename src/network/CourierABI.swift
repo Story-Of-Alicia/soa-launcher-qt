@@ -66,6 +66,15 @@ public func courier_update(_ pointer: UnsafeMutableRawPointer?,
     return courier.startUpdate(installPath: String(cString: installPath))
 }
 
+@_cdecl("courier_repair")
+public func courier_repair(_ pointer: UnsafeMutableRawPointer?,
+                           _ installPath: UnsafePointer<CChar>?) -> UInt64
+{
+    guard let pointer, let installPath else { return 0 }
+    let courier = Unmanaged<Courier>.fromOpaque(pointer).takeUnretainedValue()
+    return courier.startRepair(installPath: String(cString: installPath))
+}
+
 @_cdecl("courier_cancel")
 public func courier_cancel(_ pointer: UnsafeMutableRawPointer?)
 {

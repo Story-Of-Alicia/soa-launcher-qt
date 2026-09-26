@@ -38,7 +38,8 @@ typedef enum
     courier_result_up_to_date       = 1,
     courier_result_update_available = 2,
     courier_result_cancelled        = 3,
-    courier_result_failed           = 4
+    courier_result_failed           = 4,
+    courier_result_integrity_repair_required = 5
 } courier_result;
 
 typedef void (*courier_done_cb)(uint64_t       operation_id,
@@ -55,6 +56,7 @@ void courier_destroy(courier* d);
 uint64_t courier_integrity_check(courier* d, const char* install_path);
 uint64_t courier_update_check(courier* d, const char* install_path);
 uint64_t courier_update(courier* d, const char* install_path);
+uint64_t courier_repair(courier* d, const char* install_path);
 
 void courier_cancel(courier* d);
 

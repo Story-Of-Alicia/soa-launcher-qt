@@ -1259,27 +1259,9 @@ Missing: %1. %2, then restart the launcher.</source>
             <translation type="unfinished" />
         </message>
         <message>
-            <location filename="../src/ui/InstallState.cpp" line="238" />
-            <location filename="../src/ui/InstallState.cpp" line="239" />
-            <source>The launcher could not check for game updates. You can still launch the installed version.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
-            <location filename="../src/i18n/TranslationCatalog.cpp" line="139" />
-            <location filename="../src/ui/RepairFiles.cpp" line="72" />
-            <source>The launcher detected %1 protected file changes.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
-            <location filename="../src/i18n/TranslationCatalog.cpp" line="140" />
-            <location filename="../src/ui/RepairFiles.cpp" line="67" />
-            <source>The launcher detected a protected file change: %1</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
             <location filename="../src/i18n/TranslationCatalog.cpp" line="143" />
             <location filename="../src/ui/RepairFiles.cpp" line="155" />
-            <source>The launcher will verify every %1 file against the current CDN manifest.</source>
+            <source>The launcher will verify every %1 file against the installed game version's manifest.</source>
             <translation type="unfinished" />
         </message>
         <message>
@@ -1333,6 +1315,49 @@ Missing: %1. %2, then restart the launcher.</source>
         <message>
             <location filename="../src/ui/GameInstall.cpp" line="249" />
             <source>~ 2 GB of free disk space required.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/network/CourierPaths.swift" line="268" />
+            <source>Could not inspect game installation</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/network/CourierPaths.swift" line="317" />
+            <source>Could not inspect game installation: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/network/CourierPaths.swift" line="312" />
+            <source>Game installation contains too many unexpected files</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Unexpected file detected: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Required file is missing: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Protected file was modified: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Protected file changed: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>%1 more file changes were detected.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>The installed game version could not be determined for repair</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>The launcher could not verify the installed game files. Try again before launching.</source>
             <translation type="unfinished" />
         </message>
     </context>
@@ -3013,6 +3038,10 @@ See launcher.log for the complete command output.</source>
             <location filename="../src/i18n/TranslationCatalog.cpp" line="241" />
             <location filename="../src/network/NetworkFoundation.swift" line="198" />
             <source>The server returned no response</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>The launcher could not check for game updates. Try again before launching.</source>
             <translation type="unfinished" />
         </message>
     </context>

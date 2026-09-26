@@ -5,7 +5,9 @@
 #include "config/Config.hpp"
 #include "i18n/LanguageManager.hpp"
 #include "runtime/Shell.hpp"
+#include "update/LauncherUpdateManager.hpp"
 #include "ui/InstallState.hpp"
+#include "ui/RepairFiles.hpp"
 #include "ui/LauncherDialog.hpp"
 
 #include <QApplication>
@@ -45,6 +47,31 @@ bool MainWindow::can_run_game_directly() const
         && shell->is_wine_installed();
 }
 
+void MainWindow::request_game_launch()
+{
+    if (!can_run_game_directly())
+        return;
+
+    const int repair_key = static_cast<int>(game_version);
+    if (repair_files && pending_integrity_repairs.contains(repair_key))
+    {
+        repair_files->set_game_version(game_version);
+        repair_files->set_detected_changes(pending_integrity_repairs.value(repair_key));
+        open_overlay(repair_files);
+        show_launcher();
+        return;
+    }
+
+    launch_after_preflight_check = true;
+    if (!launcher_update_check_complete && launcher_update_manager)
+    {
+        launcher_update_manager->check_for_updates();
+        return;
+    }
+
+    install_state->recheck_before_launch();
+}
+
 void MainWindow::run_game_directly()
 {
     if (!can_run_game_directly())
@@ -58,7 +85,7 @@ void MainWindow::run_game_directly()
         return;
     }
 
-    shell->run_game(Config::instance().username(), Config::instance().token());
+    request_game_launch();
     refresh_tray_actions();
 }
 

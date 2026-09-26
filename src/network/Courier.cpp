@@ -111,8 +111,7 @@ namespace soa::network
 
     void CourierBridge::clear_operation(const qulonglong operation_id)
     {
-        if (operation_id == 0) active_operations.clear();
-        else active_operations.remove(operation_id);
+        if (operation_id != 0) active_operations.remove(operation_id);
     }
 
     void CourierBridge::report(const DownloadStatus& ds)

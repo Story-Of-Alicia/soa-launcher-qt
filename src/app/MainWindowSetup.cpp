@@ -165,7 +165,7 @@ void MainWindow::setup_repair_files()
         close_overlay(repair_files);
 
         repair_active = true;
-        repair_files->set_detected_changes({});
+        install_state->begin_repair_transfer();
         if (integrity_watcher)
             integrity_watcher->set_suspended(true);
         set_game_switching_enabled(install_state->stage());
@@ -179,10 +179,13 @@ void MainWindow::setup_repair_files()
                     return;
 
                 repair_active = false;
+                install_state->end_repair_transfer();
+                pending_integrity_repairs.remove(static_cast<int>(game_version));
+                repair_files->set_detected_changes({});
                 close_overlay(repair_progress);
                 if (integrity_watcher)
                     integrity_watcher->set_suspended(false);
-                install_state->probe();
+                install_state->mark_game_synchronized();
                 last_view = View::Loading;
                 on_stage_changed(install_state->stage());
                 LauncherDialog::information(
@@ -192,6 +195,7 @@ void MainWindow::setup_repair_files()
             connect(repair_progress, &DownloadProgress::closed, this, [this]()
             {
                 repair_active = false;
+                install_state->end_repair_transfer();
                 if (integrity_watcher)
                     integrity_watcher->set_suspended(false);
                 on_overlay_closed(repair_progress);
@@ -201,6 +205,7 @@ void MainWindow::setup_repair_files()
         }
 
         open_overlay(repair_progress);
+        repair_progress->start_download();
     });
 }
 
@@ -210,9 +215,35 @@ void MainWindow::setup_integrity_watcher()
     connect(integrity_watcher, &soa::runtime::GameIntegrityWatcher::protected_files_changed,
             this, [this](const soa::common::game::GameVersion version, const QStringList& paths)
     {
-        if (repair_active || (repair_files && repair_files->isVisible())
+        if (install_state->stage() == Stage::Downloading
+            || install_state->stage() == Stage::Updating
+            || repair_active
             || (repair_progress && repair_progress->isVisible()))
         {
+            return;
+        }
+
+        launch_after_preflight_check = false;
+        if (install_state->stage() == Stage::CheckingUpdate)
+        {
+            install_state->cancel_prelaunch_check();
+            if (update_progress)
+            {
+                update_progress->stop_observing_operation();
+                close_overlay(update_progress);
+            }
+        }
+
+        const int repair_key = static_cast<int>(version);
+        const bool already_pending = pending_integrity_repairs.contains(repair_key);
+        QStringList detected = pending_integrity_repairs.value(repair_key);
+        detected.append(paths);
+        detected.removeDuplicates();
+        pending_integrity_repairs.insert(repair_key, detected);
+        if (already_pending)
+        {
+            if (version == game_version && repair_files && repair_files->isVisible())
+                repair_files->set_detected_changes(detected);
             return;
         }
 
@@ -224,11 +255,9 @@ void MainWindow::setup_integrity_watcher()
         close_overlay(game_install);
         set_game_version(version);
         repair_files->set_game_version(version);
-        repair_files->set_detected_changes(paths);
+        repair_files->set_detected_changes(detected);
         open_overlay(repair_files);
-        showNormal();
-        raise();
-        activateWindow();
+        show_launcher();
     });
     integrity_watcher->refresh();
 }
@@ -251,6 +280,8 @@ void MainWindow::setup_alicia_chooser()
     {
         open_for_current_stage();
     });
+    connect(alicia_chooser, &AliciaChooser::launch_requested,
+            this, &MainWindow::request_game_launch);
 
     connect(alicia_chooser, &AliciaChooser::reset_config_requested, this, [this]()
     {
@@ -323,6 +354,58 @@ void MainWindow::setup_game_install()
     connect(game_install, &GameInstall::closed, this, [this]()
     {
         on_overlay_closed(game_install);
+    });
+
+    update_progress = new DownloadProgress(this);
+    update_progress->hide();
+    connect(install_state, &soa::ui::InstallState::game_sync_started,
+            this, [this](const qulonglong operation_id)
+    {
+        update_progress->observe_operation(operation_id);
+        open_overlay(update_progress);
+    });
+    connect(install_state, &soa::ui::InstallState::game_sync_finished,
+            this, [this](const bool ok)
+    {
+        update_progress->stop_observing_operation();
+        close_overlay(update_progress);
+        if (!ok)
+            launch_after_preflight_check = false;
+    });
+    connect(install_state, &soa::ui::InstallState::game_repair_required,
+            this, [this](const QStringList& changes)
+    {
+        launch_after_preflight_check = false;
+        const int repair_key = static_cast<int>(game_version);
+        QStringList detected = pending_integrity_repairs.value(repair_key);
+        detected.append(changes);
+        detected.removeDuplicates();
+        pending_integrity_repairs.insert(repair_key, detected);
+        repair_files->set_game_version(game_version);
+        repair_files->set_detected_changes(detected);
+        open_overlay(repair_files);
+        show_launcher();
+    });
+    connect(update_progress, &DownloadProgress::external_cancel_requested,
+            this, [this](const qulonglong)
+    {
+        launch_after_preflight_check = false;
+        install_state->cancel_prelaunch_check();
+        close_overlay(update_progress);
+    });
+    connect(update_progress, &DownloadProgress::download_finished, this, [this](const bool ok)
+    {
+        if (!ok)
+            return;
+
+        close_overlay(update_progress);
+        install_state->mark_game_synchronized();
+        last_view = View::Loading;
+        on_stage_changed(install_state->stage());
+    });
+    connect(update_progress, &DownloadProgress::closed, this, [this]()
+    {
+        on_overlay_closed(update_progress);
     });
 }
 

@@ -23,18 +23,22 @@ public:
     explicit DownloadProgress(Mode mode, QWidget* parent = nullptr);
     ~DownloadProgress() override;
 
+    void observe_operation(qulonglong operation_id);
+    void stop_observing_operation();
+    void start_download();
+    [[nodiscard]] bool observing_operation() const { return observing_external_operation; }
+
 signals:
     void closed();
     void download_started();
     void download_finished(bool ok);
+    void external_cancel_requested(qulonglong operation_id);
 
 protected:
     void paint_content(QPainter& painter) override;
-    void showEvent(QShowEvent* event) override;
 
 private:
     void setup_buttons();
-    void start_download();
     void cancel_download();
     void cancel_active_operation(const QString& message);
     void set_terminal_error(const QString& message);
@@ -49,6 +53,7 @@ private:
     qulonglong active_operation_id {};
     QString active_operation_key;
     bool cancellation_in_progress {};
+    bool observing_external_operation {};
     soa::network::DownloadStatus current;
 
     QPushButton* close_button {};

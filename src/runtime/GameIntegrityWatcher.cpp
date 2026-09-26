@@ -5,6 +5,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
@@ -22,6 +23,86 @@ namespace soa::runtime
     namespace
     {
         constexpr int k_refresh_delay_ms = 800;
+
+        QString path_key(QString value)
+        {
+            value.replace(QLatin1Char('\\'), QLatin1Char('/'));
+            return value.toCaseFolded();
+        }
+
+        QString tagged_change(const char* kind, const QString& relative)
+        {
+            return QString::fromLatin1(kind) + QLatin1Char(':') + relative;
+        }
+
+        bool is_internal_launcher_path(const QString& relative)
+        {
+            const QString first = relative.section(QLatin1Char('/'), 0, 0).toLower();
+            return first == QStringLiteral(".soa-update-staging")
+                || first == QStringLiteral(".soa-update-backup")
+                || first == QStringLiteral(".soa-update-journal.json")
+                || first == QStringLiteral(".soa-managed-manifest.json")
+                || first == QStringLiteral(".soa-update-staging.json")
+                || first.startsWith(QStringLiteral(".soa-recovery-quarantine-"));
+        }
+
+        QStringList unexpected_files(const QString& root,
+                                     const QHash<QString, QByteArray>& hashes)
+        {
+            QSet<QString> expected;
+            for (auto it = hashes.cbegin(); it != hashes.cend(); ++it)
+                expected.insert(path_key(it.key()));
+
+            const QSet<QString> allowed {
+                path_key(QStringLiteral("version.json")),
+                path_key(QStringLiteral("alice.cfg")),
+                path_key(QStringLiteral("alice.cfg.soa-macos-backup"))
+            };
+
+            const bool dxvk_active = QFileInfo(
+                QDir(root).filePath(QStringLiteral("d3d9.dll"))).isFile()
+                && (expected.contains(path_key(QStringLiteral("d3dx9_31.dll.bak")))
+                    || expected.contains(path_key(QStringLiteral("d3dx9_42.dll.bak"))));
+            const QSet<QString> dxvk_allowed = dxvk_active
+                ? QSet<QString> {
+                    path_key(QStringLiteral("d3d9.dll")),
+                    path_key(QStringLiteral("d3dx9_31.dll")),
+                    path_key(QStringLiteral("d3dx9_42.dll"))
+                  }
+                : QSet<QString> {};
+
+            QStringList unexpected;
+            QDirIterator iterator(
+                root,
+                QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                QDirIterator::Subdirectories);
+            const QDir base(root);
+            while (iterator.hasNext())
+            {
+                iterator.next();
+                const QFileInfo info = iterator.fileInfo();
+                const QString relative = base.relativeFilePath(info.absoluteFilePath())
+                    .replace(QLatin1Char('\\'), QLatin1Char('/'));
+                if (relative.isEmpty() || is_internal_launcher_path(relative))
+                    continue;
+
+                if (info.isSymLink())
+                {
+                    unexpected.append(relative);
+                    continue;
+                }
+                if (info.isDir())
+                    continue;
+
+                const QString key = path_key(relative);
+                if (!expected.contains(key) && !allowed.contains(key)
+                    && !dxvk_allowed.contains(key))
+                {
+                    unexpected.append(relative);
+                }
+            }
+            return unexpected;
+        }
     }
 
     GameIntegrityWatcher::GameIntegrityWatcher(QObject* parent)
@@ -58,6 +139,8 @@ namespace soa::runtime
         {
             refresh_timer->stop();
             pending_refresh = true;
+            ++generation;
+            contexts.clear();
             clear_watchers();
             return;
         }
@@ -90,6 +173,8 @@ namespace soa::runtime
             return;
         }
 
+        refresh_timer->stop();
+        ++generation;
         clear_watchers();
         contexts.clear();
         load_context(soa::common::game::GameVersion::Playtest);
@@ -127,6 +212,7 @@ namespace soa::runtime
     {
         const QString base = QString::fromLatin1(soa::common::game::profile(version).cdn_base_url);
         const QUrl url(QStringLiteral("%1/%2/manifest.json").arg(base, build));
+        const quint64 scan_generation = generation;
         network->get(
             url,
             15000,
@@ -134,14 +220,15 @@ namespace soa::runtime
             QByteArray("application/json"),
             QByteArray("Story-Of-Alicia-Launcher"),
             false,
-            [this, version, root, build](const soa::network::HttpResponse& response)
+            [this, version, root, build, scan_generation](const soa::network::HttpResponse& response)
             {
                 const bool ok = response.result == soa_http_result_completed
                     && response.status >= 200
                     && response.status < 300
                     && response.data.size() <= 32 * 1024 * 1024;
                 auto it = contexts.find(key(version));
-                if (!ok || it == contexts.end() || it->root != root || it->version != build)
+                if (scan_generation != generation || suspended || !ok
+                    || it == contexts.end() || it->root != root || it->version != build)
                     return;
                 apply_manifest(version, response.data);
             });
@@ -207,19 +294,34 @@ namespace soa::runtime
         if (it->hashes.isEmpty())
             return;
 
+        if (QFileInfo(QDir(it->root).filePath(QStringLiteral("d3d9.dll"))).isFile())
+        {
+            for (const QString& name : {QStringLiteral("d3dx9_31.dll"),
+                                        QStringLiteral("d3dx9_42.dll")})
+            {
+                if (!it->hashes.contains(name))
+                    continue;
+                const QByteArray hash = it->hashes.take(name);
+                const qint64 size = it->sizes.take(name);
+                it->hashes.insert(name + QStringLiteral(".bak"), hash);
+                it->sizes.insert(name + QStringLiteral(".bak"), size);
+            }
+        }
+
         const int contextKey = key(version);
         const QString root = it->root;
         const QString build = it->version;
         const auto hashes = it->hashes;
         const auto sizes = it->sizes;
+        const quint64 scan_generation = generation;
         auto* verification = new QFutureWatcher<QStringList>(this);
         connect(verification, &QFutureWatcher<QStringList>::finished, this,
-                [this, verification, contextKey, version, root, build]()
+                [this, verification, contextKey, version, root, build, scan_generation]()
         {
             const QStringList changed = verification->result();
             verification->deleteLater();
             auto context = contexts.find(contextKey);
-            if (context == contexts.end() || suspended
+            if (scan_generation != generation || context == contexts.end() || suspended
                 || context->root != root || context->version != build)
                 return;
             context->ready = true;
@@ -237,13 +339,19 @@ namespace soa::runtime
             {
                 const QString absolute = QDir::cleanPath(base.filePath(file.key()));
                 const QFileInfo info(absolute);
-                if (!info.exists() || info.size() != sizes.value(file.key(), -1)
-                    || GameIntegrityWatcher::hash_file(
-                           absolute, file.value().size()) != file.value())
+                if (!info.exists())
                 {
-                    changed.append(file.key());
+                    changed.append(tagged_change("missing", file.key()));
+                }
+                else if (info.size() != sizes.value(file.key(), -1)
+                         || GameIntegrityWatcher::hash_file(
+                                absolute, file.value().size()) != file.value())
+                {
+                    changed.append(tagged_change("modified", file.key()));
                 }
             }
+            for (const QString& path : unexpected_files(root, hashes))
+                changed.append(tagged_change("unexpected", path));
             changed.removeDuplicates();
             return changed;
         }));
@@ -275,6 +383,18 @@ namespace soa::runtime
             }
             if (info.isFile())
                 requestedFiles.insert(absolute);
+        }
+
+        QDirIterator directoryIterator(
+            it->root, QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+            QDirIterator::Subdirectories);
+        while (directoryIterator.hasNext())
+        {
+            const QString directory = QDir::cleanPath(directoryIterator.next());
+            const QString relative = root.relativeFilePath(directory)
+                .replace(QLatin1Char('\\'), QLatin1Char('/'));
+            if (!is_internal_launcher_path(relative))
+                requestedDirectories.insert(directory);
         }
 
         for (auto directory = requestedDirectories.begin(); directory != requestedDirectories.end();)
@@ -352,7 +472,7 @@ namespace soa::runtime
             return;
         const int context_key = map.value();
         auto it = contexts.find(context_key);
-        if (it == contexts.end() || !it->ready || it->alerted)
+        if (it == contexts.end() || !it->ready)
             return;
 
         const QString relative = QDir(it->root).relativeFilePath(path);
@@ -360,30 +480,38 @@ namespace soa::runtime
         const auto version = context_key == 2 ? soa::common::game::GameVersion::Alicia2
                                               : soa::common::game::GameVersion::Playtest;
         const qint64 expected_size = it->sizes.value(relative, -1);
-        if (!info.exists() || (expected_size >= 0 && info.size() != expected_size))
+        if (!info.exists())
         {
-            report_change(version, {relative});
+            report_change(version, {tagged_change("missing", relative)});
+            return;
+        }
+        if (expected_size >= 0 && info.size() != expected_size)
+        {
+            report_change(version, {tagged_change("modified", relative)});
             return;
         }
 
         const QByteArray expected_hash = it->hashes.value(relative);
         const QString root = it->root;
         const QString build = it->version;
+        const quint64 scan_generation = generation;
         auto* verification = new QFutureWatcher<QByteArray>(this);
         connect(verification, &QFutureWatcher<QByteArray>::finished, this,
-                [this, verification, context_key, version, root, build, path, relative, expected_hash]()
+                [this, verification, context_key, version, root, build, path, relative, expected_hash, scan_generation]()
         {
             const QByteArray actual_hash = verification->result();
             verification->deleteLater();
             auto context = contexts.find(context_key);
-            if (context == contexts.end() || suspended || context->alerted
+            if (scan_generation != generation || context == contexts.end() || suspended
                 || context->root != root || context->version != build)
                 return;
             if (actual_hash != expected_hash)
             {
-                report_change(version, {relative});
+                report_change(version, {tagged_change("modified", relative)});
                 return;
             }
+            context->reported_changes.remove(tagged_change("missing", relative));
+            context->reported_changes.remove(tagged_change("modified", relative));
             if (QFileInfo::exists(path) && !watcher->files().contains(path))
             {
                 if (watcher->addPath(path))
@@ -418,7 +546,7 @@ namespace soa::runtime
             return;
         const int context_key = map.value();
         auto it = contexts.find(context_key);
-        if (it == contexts.end() || !it->ready || it->alerted)
+        if (it == contexts.end() || !it->ready)
             return;
         if (it->directory_scan_in_progress)
         {
@@ -434,24 +562,35 @@ namespace soa::runtime
         const auto version = context_key == 2 ? soa::common::game::GameVersion::Alicia2
                                               : soa::common::game::GameVersion::Playtest;
 
+        const quint64 scan_generation = generation;
         auto* verification = new QFutureWatcher<QStringList>(this);
         connect(verification, &QFutureWatcher<QStringList>::finished, this,
-                [this, verification, context_key, version, root, build, path]()
+                [this, verification, context_key, version, root, build, path, scan_generation]()
         {
             QStringList changed = verification->result();
             verification->deleteLater();
             auto context = contexts.find(context_key);
-            if (context == contexts.end() || context->root != root || context->version != build)
+            if (scan_generation != generation || context == contexts.end()
+                || context->root != root || context->version != build)
                 return;
             context->directory_scan_in_progress = false;
             const bool rescan = context->directory_scan_pending;
             context->directory_scan_pending = false;
-            if (suspended || context->alerted)
+            if (suspended)
                 return;
 
+            changed.removeDuplicates();
+            const QSet<QString> current_changes(changed.cbegin(), changed.cend());
+            for (auto reported = context->reported_changes.begin();
+                 reported != context->reported_changes.end();)
+            {
+                if (!current_changes.contains(*reported))
+                    reported = context->reported_changes.erase(reported);
+                else
+                    ++reported;
+            }
             if (!changed.isEmpty())
             {
-                changed.removeDuplicates();
                 report_change(version, changed);
                 return;
             }
@@ -492,6 +631,28 @@ namespace soa::runtime
                                 path.toStdString());
                 }
             }
+
+            QDirIterator directories(
+                root, QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                QDirIterator::Subdirectories);
+            const QDir rootDir(root);
+            while (directories.hasNext())
+            {
+                const QString directory = QDir::cleanPath(directories.next());
+                const QString relative = rootDir.relativeFilePath(directory)
+                    .replace(QLatin1Char('\\'), QLatin1Char('/'));
+                if (is_internal_launcher_path(relative)
+                    || watcher->directories().contains(directory))
+                {
+                    continue;
+                }
+                if (watcher->addPath(directory))
+                {
+                    context->watched_directories.insert(directory);
+                    directory_versions.insert(directory, context_key);
+                }
+            }
+
             if (rescan)
                 QTimer::singleShot(0, this, [this, path]() { inspect_directory(path); });
         });
@@ -503,9 +664,16 @@ namespace soa::runtime
             {
                 const QString absolute = QDir::cleanPath(base.filePath(file.key()));
                 const QFileInfo info(absolute);
-                if (!info.exists() || info.size() != sizes.value(file.key(), -1))
-                    changed.append(file.key());
+                if (!info.exists())
+                    changed.append(tagged_change("missing", file.key()));
+                else if (info.size() != sizes.value(file.key(), -1)
+                         || GameIntegrityWatcher::hash_file(
+                                absolute, file.value().size()) != file.value())
+                    changed.append(tagged_change("modified", file.key()));
             }
+            for (const QString& unexpected : unexpected_files(root, hashes))
+                changed.append(tagged_change("unexpected", unexpected));
+            changed.removeDuplicates();
             return changed;
         }));
     }
@@ -514,9 +682,18 @@ namespace soa::runtime
                                              const QStringList& paths)
     {
         auto it = contexts.find(key(version));
-        if (it == contexts.end() || it->alerted)
+        if (it == contexts.end())
             return;
-        it->alerted = true;
-        emit protected_files_changed(version, paths);
+
+        QStringList fresh;
+        for (const QString& path : paths)
+        {
+            if (path.isEmpty() || it->reported_changes.contains(path))
+                continue;
+            it->reported_changes.insert(path);
+            fresh.append(path);
+        }
+        if (!fresh.isEmpty())
+            emit protected_files_changed(version, fresh);
     }
 }

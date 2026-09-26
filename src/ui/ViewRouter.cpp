@@ -7,8 +7,10 @@ namespace soa::ui
         switch (stage)
         {
             case Stage::Probing:
-            case Stage::CheckingUpdate:
                 return View::Loading;
+
+            case Stage::CheckingUpdate:
+                return View::AliciaChooser;
 
             case Stage::NeedsPrerequisites:
                 return View::Prerequisites;
@@ -22,10 +24,16 @@ namespace soa::ui
                 return View::WineInstall;
 
             case Stage::NeedsDownload:
-            case Stage::NeedsUpdate:
-            case Stage::Downloading:
-            case Stage::Updating:
                 return View::GameInstall;
+
+            case Stage::Downloading:
+                return View::Loading;
+
+            case Stage::NeedsUpdate:
+                return View::AliciaChooser;
+
+            case Stage::Updating:
+                return View::Loading;
 
             case Stage::NeedsRules:
                 return View::Rules;

@@ -20,7 +20,7 @@ namespace soa::network
             static courier_done_cb     done_callback();
 
             void begin_operation(qulonglong operation_id);
-            void clear_operation(qulonglong operation_id = 0);
+            void clear_operation(qulonglong operation_id);
             void report(const DownloadStatus& ds);
 
         signals:

@@ -77,6 +77,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (message.isEmpty())
             return;
         if ((game_install && game_install->isVisible())
+            || (update_progress && update_progress->isVisible())
             || (repair_progress && repair_progress->isVisible()))
             return;
         LauncherDialog* box = soa::app::detail::show_modeless_message(
@@ -139,8 +140,13 @@ MainWindow::MainWindow(QWidget* parent)
 
     refresh_tray_actions();
     raise_persistent_controls();
-    QTimer::singleShot(0, launcher_update_manager,
-                       &soa::update::LauncherUpdateManager::check_for_updates);
+    QTimer::singleShot(0, this, [this]()
+    {
+        install_state->probe();
+        shell->detect_existing_game();
+        refresh_tray_actions();
+        raise_persistent_controls();
+    });
 
     connect(&soa::i18n::LanguageManager::instance(),
             &soa::i18n::LanguageManager::language_changed, this,

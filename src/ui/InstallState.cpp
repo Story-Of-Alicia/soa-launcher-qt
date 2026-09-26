@@ -15,8 +15,6 @@
 #include "config/Config.hpp"
 #include <spdlog/spdlog.h>
 
-#include "i18n/LanguageManager.hpp"
-
 namespace soa::ui
 {
     namespace
@@ -73,9 +71,11 @@ namespace soa::ui
     {
         if (update_checker && update_operation_id != 0)
             courier_cancel(update_checker);
-        CourierBridge::instance().clear_operation(update_operation_id);
+        if (update_operation_id != 0)
+            CourierBridge::instance().clear_operation(update_operation_id);
         update_operation_id = 0;
         update_check_in_progress = false;
+        prelaunch_check = PrelaunchCheck::None;
     }
 
     void InstallState::schedule_probe()
@@ -95,6 +95,53 @@ namespace soa::ui
     void InstallState::clear_rules_reviewed()
     {
         rules_reviewed = false;
+    }
+
+    void InstallState::recheck_before_launch()
+    {
+        if (!probed || !game_installed || courier_working || wine_state == State::Working)
+            return;
+
+        cancel_update_check();
+        update_check_complete = false;
+        update_needed = false;
+        set_warning({});
+        start_update_check_if_needed();
+    }
+
+    void InstallState::cancel_prelaunch_check()
+    {
+        cancel_update_check();
+        update_check_complete = false;
+        update_needed = false;
+        set_warning({});
+        recompute();
+    }
+
+    void InstallState::begin_repair_transfer()
+    {
+        repair_transfer_active = true;
+        update_needed = false;
+        set_warning({});
+        recompute();
+    }
+
+    void InstallState::end_repair_transfer()
+    {
+        repair_transfer_active = false;
+        courier_working = false;
+        update_needed = false;
+        recompute();
+    }
+
+    void InstallState::mark_game_synchronized()
+    {
+        cancel_update_check();
+        checked_update_key = current_update_key();
+        update_check_complete = true;
+        update_needed = false;
+        set_warning({});
+        recompute();
     }
 
     void InstallState::probe()
@@ -160,7 +207,6 @@ namespace soa::ui
         }
 
         recompute();
-        QTimer::singleShot(0, this, [this]() { start_update_check_if_needed(); });
     }
 
     void InstallState::start_update_check_if_needed()
@@ -177,10 +223,11 @@ namespace soa::ui
         const QString installPath = config.game_install_path();
         if (!config.path_inside_prefix(installPath))
         {
-            update_check_complete = true;
-            const QString warning = QStringLiteral(
-                "The configured game folder is outside the active Wine prefix.");
-            set_warning(warning);
+            update_check_complete = false;
+            update_needed = false;
+            set_warning(QStringLiteral(
+                "The configured game folder is outside the active Wine prefix."));
+            emit game_sync_finished(false);
             recompute();
             return;
         }
@@ -195,24 +242,70 @@ namespace soa::ui
         }
         if (!update_checker)
         {
-            update_check_complete = true;
+            update_check_complete = false;
+            update_needed = false;
             set_warning(QStringLiteral("Could not create the game update checker."));
+            emit game_sync_finished(false);
             recompute();
             return;
         }
 
         update_check_in_progress = true;
+        prelaunch_check = PrelaunchCheck::Version;
+        update_phase = courier_phase_preparing;
         update_operation_id = courier_update_check(
             update_checker, installPath.toUtf8().constData());
         if (update_operation_id == 0)
         {
             update_check_in_progress = false;
-            update_check_complete = true;
+            prelaunch_check = PrelaunchCheck::None;
+            update_check_complete = false;
+            update_needed = false;
             set_warning(QStringLiteral("Could not start the game update check."));
+            emit game_sync_finished(false);
             recompute();
             return;
         }
         CourierBridge::instance().begin_operation(update_operation_id);
+        emit game_sync_started(update_operation_id);
+        recompute();
+    }
+
+    void InstallState::start_integrity_check()
+    {
+        auto& config = soa::config::Config::instance();
+        const QString installPath = config.game_install_path();
+        if (!config.path_inside_prefix(installPath) || !update_checker)
+        {
+            update_check_complete = false;
+            update_needed = false;
+            set_warning(QStringLiteral(
+                "The launcher could not verify the installed game files. Try again before launching."));
+            emit game_sync_finished(false);
+            recompute();
+            return;
+        }
+
+        update_check_in_progress = true;
+        prelaunch_check = PrelaunchCheck::Integrity;
+        update_phase = courier_phase_preparing;
+        update_operation_id = courier_integrity_check(
+            update_checker, installPath.toUtf8().constData());
+        if (update_operation_id == 0)
+        {
+            update_check_in_progress = false;
+            prelaunch_check = PrelaunchCheck::None;
+            update_check_complete = false;
+            update_needed = false;
+            set_warning(QStringLiteral(
+                "The launcher could not verify the installed game files. Try again before launching."));
+            emit game_sync_finished(false);
+            recompute();
+            return;
+        }
+
+        CourierBridge::instance().begin_operation(update_operation_id);
+        emit game_sync_started(update_operation_id);
         recompute();
     }
 
@@ -220,28 +313,96 @@ namespace soa::ui
     {
         if (status.operation_id == update_operation_id)
         {
-            if (status.base.state != State::Done && status.base.state != State::Failed)
+            if (status.base.state == State::Working)
+            {
+                update_phase = status.phase;
+                recompute();
                 return;
+            }
 
+            const PrelaunchCheck completed_check = prelaunch_check;
             update_check_in_progress = false;
-            update_check_complete = true;
+            prelaunch_check = PrelaunchCheck::None;
             CourierBridge::instance().clear_operation(update_operation_id);
             update_operation_id = 0;
 
-            if (status.base.state == State::Done)
+            if (status.base.state == State::Failed)
             {
-                update_needed = status.result == courier_result_update_available;
-                if (!update_needed)
-                    set_warning({});
-            }
-            else
-            {
+                update_check_complete = false;
                 update_needed = false;
-                set_warning(QStringLiteral(
-                    "The launcher could not check for game updates. You can still launch the installed version."));
+                if (status.result == courier_result_cancelled)
+                    set_warning({});
+                else if (completed_check == PrelaunchCheck::Integrity)
+                    set_warning(QStringLiteral(
+                        "The launcher could not verify the installed game files. Try again before launching."));
+                else
+                    set_warning(QStringLiteral(
+                        "The launcher could not check for game updates. Try again before launching."));
+                emit game_sync_finished(false);
+                recompute();
+                return;
             }
+
+            if (completed_check == PrelaunchCheck::Version)
+            {
+                if (status.result == courier_result_update_available)
+                {
+                    update_check_complete = true;
+                    update_needed = true;
+                    set_warning({});
+                    emit game_sync_finished(false);
+                    recompute();
+                    return;
+                }
+
+                update_needed = false;
+                set_warning({});
+                start_integrity_check();
+                return;
+            }
+
+            if (completed_check == PrelaunchCheck::Integrity)
+            {
+                update_check_complete = true;
+                update_needed = false;
+                set_warning({});
+
+                if (status.result == courier_result_integrity_repair_required)
+                {
+                    const QStringList changes = status.base.message.split(
+                        QLatin1Char('\n'), Qt::SkipEmptyParts);
+                    emit game_sync_finished(false);
+                    emit game_repair_required(changes);
+                    recompute();
+                    return;
+                }
+
+                emit game_sync_finished(true);
+                recompute();
+                return;
+            }
+
+            emit game_sync_finished(false);
             recompute();
             return;
+        }
+
+        if (repair_transfer_active)
+        {
+            if (status.base.state == State::Working)
+            {
+                courier_working = true;
+                set_warning({});
+                recompute();
+                return;
+            }
+            if (status.base.state == State::Done || status.base.state == State::Failed)
+            {
+                courier_working = false;
+                update_needed = false;
+                recompute();
+                return;
+            }
         }
 
         if (status.base.state == State::Working)
@@ -257,6 +418,8 @@ namespace soa::ui
             courier_working = false;
             if (status.base.state == State::Failed)
             {
+                update_check_complete = true;
+                update_needed = true;
                 if (status.result == courier_result_cancelled)
                 {
                     set_warning({});
@@ -265,7 +428,7 @@ namespace soa::ui
                 {
                     const QString detail = status.base.message.isEmpty()
                         ? QStringLiteral("The game download failed.")
-                        : soa::i18n::translate(status.base.message);
+                        : status.base.message;
                     set_warning(QStringLiteral(
                         "The last game transfer failed. Retry will verify existing files and continue: %1")
                         .arg(detail));
@@ -274,8 +437,10 @@ namespace soa::ui
             else
             {
                 set_warning({});
-                update_check_complete = false;
+                checked_update_key = current_update_key();
+                update_check_complete = true;
                 update_needed = false;
+                game_installed = soa::config::Config::instance().game_installed();
                 schedule_probe();
             }
             recompute();

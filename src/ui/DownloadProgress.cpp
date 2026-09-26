@@ -31,6 +31,7 @@ DownloadProgress::DownloadProgress(QWidget* parent)
 DownloadProgress::DownloadProgress(const Mode mode_, QWidget* parent)
     : ModalOverlay(parent), mode(mode_)
 {
+    hide();
     setup_buttons();
 
     connect(&CourierBridge::instance(), &CourierBridge::download_status, this,
@@ -40,6 +41,7 @@ DownloadProgress::DownloadProgress(const Mode mode_, QWidget* parent)
                 return;
 
             const bool finished = status.base.state == State::Done || status.base.state == State::Failed;
+            const bool observed = observing_external_operation;
             current = status;
 
             const char* operation = mode == Mode::Repair ? "repair" : "download";
@@ -58,11 +60,16 @@ DownloadProgress::DownloadProgress(const Mode mode_, QWidget* parent)
 
             if (finished)
             {
-                CourierBridge::instance().clear_operation(active_operation_id);
+                if (!observed)
+                    CourierBridge::instance().clear_operation(active_operation_id);
                 active_operation_id = 0;
                 active_operation_key.clear();
                 cancellation_in_progress = false;
-                emit download_finished(status.base.state == State::Done);
+                observing_external_operation = false;
+                close_button->setEnabled(true);
+                close_button->setCursor(Qt::PointingHandCursor);
+                if (!observed)
+                    emit download_finished(status.base.state == State::Done);
             }
         });
 
@@ -104,6 +111,51 @@ DownloadProgress::~DownloadProgress()
     }
 }
 
+void DownloadProgress::observe_operation(const qulonglong operation_id)
+{
+    if (operation_id == 0)
+        return;
+
+    if (downloader)
+    {
+        courier_cancel(downloader);
+        CourierBridge::instance().clear_operation(active_operation_id);
+        courier_destroy(downloader);
+        downloader = nullptr;
+    }
+
+    active_operation_id = operation_id;
+    active_operation_key = operation_context_key();
+    cancellation_in_progress = false;
+    observing_external_operation = true;
+
+    current = DownloadStatus{};
+    current.operation_id = operation_id;
+    current.base.state = State::Working;
+    current.base.progress = 0.0;
+    current.base.message = QStringLiteral("Preparing download...");
+    current.phase = courier_phase_preparing;
+
+    retry_button->hide();
+    details_button->hide();
+    close_button->setEnabled(true);
+    close_button->setCursor(Qt::PointingHandCursor);
+    update();
+}
+
+void DownloadProgress::stop_observing_operation()
+{
+    if (!observing_external_operation)
+        return;
+
+    active_operation_id = 0;
+    active_operation_key.clear();
+    cancellation_in_progress = false;
+    observing_external_operation = false;
+    close_button->setEnabled(true);
+    close_button->setCursor(Qt::PointingHandCursor);
+}
+
 void DownloadProgress::setup_buttons()
 {
     const QSize window_size = window()->size();
@@ -112,7 +164,11 @@ void DownloadProgress::setup_buttons()
     close_button->setAccessibleName(mode == Mode::Repair
         ? QStringLiteral("Cancel or close repair")
         : QStringLiteral("Cancel or close download"));
-    close_button->setIcon(QIcon(soa::ui::assets::images[soa::ui::assets::Image::CloseNormal]));
+    const QPixmap& close_pixmap = soa::ui::assets::images[soa::ui::assets::Image::CloseNormal];
+    QIcon close_icon;
+    close_icon.addPixmap(close_pixmap, QIcon::Normal, QIcon::Off);
+    close_icon.addPixmap(close_pixmap, QIcon::Disabled, QIcon::Off);
+    close_button->setIcon(close_icon);
     close_button->setIconSize(dl::close_icon(window_size));
     close_button->setGeometry(dl::close(window_size));
     connect(close_button, &QPushButton::clicked, this, &DownloadProgress::cancel_download);
@@ -150,15 +206,18 @@ void DownloadProgress::setup_buttons()
     details_button->raise();
 }
 
-void DownloadProgress::showEvent(QShowEvent* event)
-{
-    ModalOverlay::showEvent(event);
-    if (active_operation_id == 0)
-        start_download();
-}
-
 void DownloadProgress::cancel_download()
 {
+    if (observing_external_operation)
+    {
+        const qulonglong operation_id = active_operation_id;
+        stop_observing_operation();
+        emit external_cancel_requested(operation_id);
+        hide();
+        emit closed();
+        return;
+    }
+
     if (current.base.state == State::Working && current.base.progress > 0.0)
     {
         const bool confirmed = LauncherDialog::confirm(
@@ -233,6 +292,13 @@ void DownloadProgress::set_terminal_error(const QString& message)
 
 void DownloadProgress::start_download()
 {
+    if (active_operation_id != 0)
+        return;
+
+    observing_external_operation = false;
+    close_button->setEnabled(true);
+    close_button->setCursor(Qt::PointingHandCursor);
+
     auto& config = Config::instance();
     const auto version = config.game_version();
     const auto& game = soa::common::game::profile(version);
@@ -286,7 +352,9 @@ void DownloadProgress::start_download()
                 soa::common::game::to_string(version).toStdString(),
                 game.cdn_base_url,
                 install.toStdString());
-    active_operation_id = courier_update(downloader, install.toUtf8().constData());
+    active_operation_id = mode == Mode::Repair
+        ? courier_repair(downloader, install.toUtf8().constData())
+        : courier_update(downloader, install.toUtf8().constData());
     if (active_operation_id == 0)
     {
         set_terminal_error(mode == Mode::Repair
@@ -296,7 +364,9 @@ void DownloadProgress::start_download()
     }
     active_operation_key = operation_context_key();
     CourierBridge::instance().begin_operation(active_operation_id);
+    current.operation_id = active_operation_id;
     emit download_started();
+    CourierBridge::instance().report(current);
 }
 
 QString DownloadProgress::operation_context_key() const
@@ -439,6 +509,15 @@ void DownloadProgress::paint_content(QPainter& painter)
                          soa::i18n::translate("Time remaining: %1").arg(human_eta(remaining, current.speed)));
         painter.drawText(info, Qt::AlignRight | Qt::AlignVCenter,
                          human_speed(current.speed));
+    }
+    else if (current.phase == courier_phase_checking
+             || current.phase == courier_phase_verifying)
+    {
+    }
+    else
+    {
+        painter.drawText(info, Qt::AlignCenter, painter.fontMetrics().elidedText(
+            soa::i18n::translate(current.base.message), Qt::ElideMiddle, info.width()));
     }
 
     soa::ui::progress_bar::draw(painter, dl::bar_rect(window_size), current.base.progress);

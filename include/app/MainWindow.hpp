@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QHash>
+#include <QStringList>
 #include <QWidget>
 
 class QCloseEvent;
@@ -99,6 +101,7 @@ private:
     void on_stage_changed(soa::ui::Stage stage);
     void open_for_current_stage();
     void show_launcher();
+    void request_game_launch();
     void run_game_directly();
     void refresh_tray_actions();
     void raise_persistent_controls();
@@ -113,6 +116,8 @@ private:
     bool minimized_for_game {};
     bool force_quit_requested {};
     bool launcher_update_check_complete {};
+    bool launch_after_preflight_check {};
+    QHash<int, QStringList> pending_integrity_repairs;
     SystemTrayController* tray_controller {};
     LauncherMenuController* launcher_menu_controller {};
     QLabel* version_art_label {};
@@ -128,6 +133,7 @@ private:
     Settings* settings {};
     WineInstall* wine_install {};
     GameInstall* game_install {};
+    DownloadProgress* update_progress {};
     DownloadProgress* repair_progress {};
     WineSelectMenu* wine_select {};
     LauncherUpdate* launcher_update {};

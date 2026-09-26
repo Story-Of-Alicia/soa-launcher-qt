@@ -414,10 +414,10 @@ void WineSelectMenu::populate()
     {
         const cw::WineInstall& wi = runtimes[i];
 #if defined(Q_OS_MACOS)
-        const QString type = soa::i18n::translate("Wine");
+        const QString type = QStringLiteral("Wine");
 #else
         const QString type = wi.type == cw::RuntimeType::Proton
-            ? soa::i18n::translate("Proton") : soa::i18n::translate("Wine");
+            ? QStringLiteral("Proton") : QStringLiteral("Wine");
 #endif
         QString details = wi.version.isEmpty() ? soa::i18n::translate(wi.issue) : wi.version;
         if (details.isEmpty()) details = soa::i18n::translate("Capability probe failed");

@@ -229,7 +229,7 @@ void LauncherInfoDialog::setup_ui()
     });
     connect(source_button, &QPushButton::clicked, this, []()
     {
-        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/Story-Of-Alicia")));
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/Story-Of-Alicia/soa-launcher-qt")));
     });
     connect(contact_button, &QPushButton::clicked, this, []()
     {
@@ -254,7 +254,7 @@ void LauncherInfoDialog::retranslate()
     if (page == Page::About)
     {
         setWindowTitle(translate("About Story of Alicia Launcher"));
-        title_label->setText(translate("Story of Alicia Launcher"));
+        title_label->setText(QStringLiteral("Story of Alicia Launcher"));
         subtitle_label->setText(translate("The official launcher for Linux and macOS."));
         badge_label->setText(translate("VERSION %1 · QT %2")
             .arg(QApplication::applicationVersion(), QString::fromLatin1(qVersion())));

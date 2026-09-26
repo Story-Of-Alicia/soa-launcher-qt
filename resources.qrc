@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="i18n/soa_launcher_en.ts">translations/soa_launcher_en.ts</file>
         <file>assets/2.0 ICON.png</file>
         <file>assets/agree-loading-blank.png</file>
         <file>assets/agree_clicked-blank.png</file>

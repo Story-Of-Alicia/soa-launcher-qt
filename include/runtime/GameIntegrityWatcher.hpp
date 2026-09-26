@@ -41,7 +41,7 @@ namespace soa::runtime
             QSet<QString> watched_files;
             QSet<QString> watched_directories;
             bool ready {};
-            bool alerted {};
+            QSet<QString> reported_changes;
             bool directory_scan_in_progress {};
             bool directory_scan_pending {};
         };
@@ -67,6 +67,7 @@ namespace soa::runtime
         QHash<QString, int> directory_versions;
         QSet<QString> reported_watch_failures;
         QSet<QString> reported_restore_failures;
+        quint64 generation {};
         bool suspended {};
         bool pending_refresh {};
     };

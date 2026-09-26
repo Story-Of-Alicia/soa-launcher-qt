@@ -156,7 +156,7 @@ func canonicalInstallRoot(_ installPath: String, create: Bool = false) throws ->
     return root
 }
 
-private func isSymbolicLink(_ path: String) -> Bool
+func isSymbolicLink(_ path: String) -> Bool
 {
     guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
           let type = attributes[.type] as? FileAttributeType else { return false }
@@ -171,7 +171,7 @@ func ensureNoSymlinkEscape(root: URL, relativePath: String, includeLeaf: Bool) t
 
     for part in parts.prefix(count) {
         current.appendPathComponent(part, isDirectory: true)
-        if FileManager.default.fileExists(atPath: current.path) && isSymbolicLink(current.path) {
+        if isSymbolicLink(current.path) {
             throw Err("Refusing manifest destination through a symbolic link: \(relativePath)")
         }
     }
@@ -213,15 +213,131 @@ func actualManagedRelativePath(installRoot: URL, entry: ValidatedManifestEntry) 
         return entry.relativePath
     }
 
-    let direct = try safeDestination(root: installRoot, relativePath: entry.relativePath)
+    let direct = try safeDestination(
+        root: installRoot, relativePath: entry.relativePath, includeLeafSymlinkCheck: false)
     let backupRelative = entry.relativePath + ".bak"
-    let backup = try safeDestination(root: installRoot, relativePath: backupRelative)
+    let backup = try safeDestination(
+        root: installRoot, relativePath: backupRelative, includeLeafSymlinkCheck: false)
     let dxvk = installRoot.appendingPathComponent("d3d9.dll")
     if FileManager.default.fileExists(atPath: backup.path)
+        || isSymbolicLink(backup.path)
         || FileManager.default.fileExists(atPath: dxvk.path)
     {
         _ = direct
         return backupRelative
     }
     return entry.relativePath
+}
+
+func installPathKey(_ value: String) -> String
+{
+    value.replacingOccurrences(of: "\\", with: "/")
+        .folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX"))
+}
+
+func unexpectedInstallFiles(installRoot: URL, expectedRelativePaths: [String]) throws -> [String]
+{
+    let manager = FileManager.default
+    let expected = Set(expectedRelativePaths.map(installPathKey))
+    let allowedTopLevel = Set([
+        "version.json",
+        "alice.cfg",
+        "alice.cfg.soa-macos-backup",
+    ].map(installPathKey))
+
+    let dxvkActive = manager.fileExists(atPath: installRoot.appendingPathComponent("d3d9.dll").path)
+        && expectedRelativePaths.contains(where: {
+            $0.caseInsensitiveCompare("d3dx9_31.dll.bak") == .orderedSame
+                || $0.caseInsensitiveCompare("d3dx9_42.dll.bak") == .orderedSame
+        })
+    let dxvkAllowed = dxvkActive
+        ? Set(["d3d9.dll", "d3dx9_31.dll", "d3dx9_42.dll"].map(installPathKey))
+        : Set<String>()
+
+    var enumerationError: Error?
+    guard let enumerator = manager.enumerator(
+        at: installRoot,
+        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
+        options: [],
+        errorHandler: { _, error in
+            enumerationError = error
+            return false
+        }) else {
+        throw Err("Could not inspect game installation")
+    }
+
+    var unexpected: [String] = []
+    while let item = enumerator.nextObject() as? URL {
+        let relative = item.path.replacingOccurrences(
+            of: installRoot.path.hasSuffix("/") ? installRoot.path : installRoot.path + "/",
+            with: "",
+            options: [.anchored])
+        guard !relative.isEmpty else { continue }
+
+        let firstComponent = relative.split(separator: "/", maxSplits: 1).first
+            .map(String.init)?.lowercased() ?? ""
+        let launcherInternal = firstComponent == ".soa-update-staging"
+            || firstComponent == ".soa-update-backup"
+            || firstComponent == ".soa-update-journal.json"
+            || firstComponent == ".soa-managed-manifest.json"
+            || firstComponent == ".soa-update-staging.json"
+            || firstComponent.hasPrefix(".soa-recovery-quarantine-")
+        if launcherInternal {
+            if (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                enumerator.skipDescendants()
+            }
+            continue
+        }
+
+        let values = try item.resourceValues(
+            forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
+        let key = installPathKey(relative)
+        if values.isSymbolicLink == true {
+            if !expected.contains(key) {
+                unexpected.append(relative)
+            }
+        } else if values.isDirectory == true {
+            continue
+        } else if values.isRegularFile == true {
+            if !expected.contains(key) && !allowedTopLevel.contains(key) && !dxvkAllowed.contains(key) {
+                unexpected.append(relative)
+            }
+        } else {
+            unexpected.append(relative)
+        }
+
+        if unexpected.count >= 10_000 {
+            throw Err("Game installation contains too many unexpected files")
+        }
+    }
+
+    if let enumerationError {
+        throw Err("Could not inspect game installation: \(enumerationError.localizedDescription)")
+    }
+
+    return unexpected.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+}
+
+func safeExistingDestination(root: URL, relativePath: String) throws -> URL
+{
+    let parts = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+    guard !parts.isEmpty, !relativePath.contains("\0"),
+          !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) else {
+        throw Err("Unsafe local cleanup path: \(relativePath)")
+    }
+    let first = String(parts[0]).lowercased()
+    guard !internalTopLevelNames.contains(first),
+          first != ".soa-update-staging.json",
+          !first.hasPrefix(".soa-recovery-quarantine-") else {
+        throw Err("Cleanup path conflicts with launcher metadata: \(relativePath)")
+    }
+    try ensureNoSymlinkEscape(root: root, relativePath: relativePath, includeLeaf: false)
+    let destination = root.appendingPathComponent(relativePath).standardizedFileURL
+    let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+    guard destination.path.hasPrefix(prefix) else {
+        throw Err("Cleanup path escapes installation: \(relativePath)")
+    }
+    return destination
 }

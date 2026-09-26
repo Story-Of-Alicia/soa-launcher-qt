@@ -1,11 +1,85 @@
 import Foundation
 import Soa_Courier
 
-private struct PlannedReplacement
+private struct PlannedReplacement: Sendable
 {
     let entry: ValidatedManifestEntry
     let stagedRelativePath: String
     let targetRelativePath: String
+}
+
+private struct TransferProgressSnapshot
+{
+    let received: UInt64
+    let throughput: UInt64
+    let completedFiles: Int
+    let shouldReport: Bool
+}
+
+private final class TransferProgressTracker: @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var receivedByIndex: [Int: UInt64]
+    private var completed = Set<Int>()
+    private var windowStart = Date()
+    private var windowBytes: UInt64 = 0
+    private var throughput: UInt64 = 0
+    private var lastProgressReport = Date.distantPast
+
+    init(initialReceived: [Int: UInt64])
+    {
+        self.receivedByIndex = initialReceived
+    }
+
+    func update(index: Int, received: UInt64, transferred: Int) -> TransferProgressSnapshot
+    {
+        lock.lock()
+        defer { lock.unlock() }
+
+        receivedByIndex[index] = received
+        if transferred > 0 {
+            windowBytes &+= UInt64(transferred)
+        }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(windowStart)
+        if elapsed >= 1.0 && windowBytes > 0 {
+            throughput = UInt64(Double(windowBytes) / elapsed)
+            windowBytes = 0
+            windowStart = now
+        }
+        let shouldReport = now.timeIntervalSince(lastProgressReport) >= 0.1
+        if shouldReport {
+            lastProgressReport = now
+        }
+        return snapshot(shouldReport: shouldReport)
+    }
+
+    func reset(index: Int) -> TransferProgressSnapshot
+    {
+        lock.lock()
+        defer { lock.unlock() }
+        receivedByIndex[index] = 0
+        completed.remove(index)
+        return snapshot(shouldReport: true)
+    }
+
+    func complete(index: Int, expectedSize: UInt64) -> TransferProgressSnapshot
+    {
+        lock.lock()
+        defer { lock.unlock() }
+        receivedByIndex[index] = expectedSize
+        completed.insert(index)
+        return snapshot(shouldReport: true)
+    }
+
+    private func snapshot(shouldReport: Bool) -> TransferProgressSnapshot
+    {
+        TransferProgressSnapshot(
+            received: receivedByIndex.values.reduce(UInt64(0), +),
+            throughput: throughput,
+            completedFiles: completed.count,
+            shouldReport: shouldReport)
+    }
 }
 
 extension Courier
@@ -18,7 +92,7 @@ extension Courier
 
     private func removeIfPresent(_ url: URL) throws
     {
-        if FileManager.default.fileExists(atPath: url.path) {
+        if FileManager.default.fileExists(atPath: url.path) || isSymbolicLink(url.path) {
             try FileManager.default.removeItem(at: url)
         }
     }
@@ -140,9 +214,17 @@ extension Courier
                 throw Err("Update recovery journal is unexpectedly large")
             }
             journal = try JSONDecoder().decode(UpdateJournal.self, from: data)
-            guard (journal.schemaVersion == 1 || journal.schemaVersion == 2),
+            guard (1...3).contains(journal.schemaVersion),
                   journal.replacementPaths.count == journal.replacementHadOriginal.count else {
                 throw Err("Update recovery journal is invalid")
+            }
+            if let paths = journal.obsoleteBackupPaths,
+               paths.count != journal.obsoletePaths.count {
+                throw Err("Update recovery journal has invalid cleanup metadata")
+            }
+            if journal.schemaVersion == 3,
+               journal.obsoleteBackupPaths != journal.obsoletePaths.indices.map({ ".soa-obsolete/\($0)" }) {
+                throw Err("Update recovery journal has invalid cleanup backup paths")
             }
             if let staged = journal.replacementStagedPaths,
                staged.count != journal.replacementPaths.count {
@@ -165,12 +247,15 @@ extension Courier
 
         for index in journal.replacementPaths.indices.reversed() {
             let relative = try normalizedManifestPath(journal.replacementPaths[index])
-            let destination = try safeDestination(root: installRoot, relativePath: relative)
-            let backup = try safeDestination(root: backupRoot, relativePath: relative)
-            let backupExists = manager.fileExists(atPath: backup.path)
+            let destination = try safeDestination(
+                root: installRoot, relativePath: relative, includeLeafSymlinkCheck: false)
+            let backup = try safeDestination(
+                root: backupRoot, relativePath: relative, includeLeafSymlinkCheck: false)
+            let backupExists = manager.fileExists(atPath: backup.path) || isSymbolicLink(backup.path)
             let replacementReachedDestination = backupExists || !journal.replacementHadOriginal[index]
 
-            if replacementReachedDestination, manager.fileExists(atPath: destination.path),
+            if replacementReachedDestination,
+               manager.fileExists(atPath: destination.path) || isSymbolicLink(destination.path),
                let stagedPaths = journal.replacementStagedPaths, let stagingRoot {
                 let stagedRelative = try normalizedManifestPath(stagedPaths[index])
                 let staged = try safeDestination(root: stagingRoot, relativePath: stagedRelative)
@@ -191,11 +276,12 @@ extension Courier
             }
         }
 
-        for raw in journal.obsoletePaths.reversed() {
-            let relative = try normalizedManifestPath(raw)
-            let destination = try safeDestination(root: installRoot, relativePath: relative)
-            let backup = try safeDestination(root: backupRoot, relativePath: relative)
-            if manager.fileExists(atPath: backup.path) {
+        for index in journal.obsoletePaths.indices.reversed() {
+            let relative = journal.obsoletePaths[index]
+            let destination = try safeExistingDestination(root: installRoot, relativePath: relative)
+            let backupRelative = journal.obsoleteBackupPaths?[index] ?? relative
+            let backup = try safeExistingDestination(root: backupRoot, relativePath: backupRelative)
+            if manager.fileExists(atPath: backup.path) || isSymbolicLink(backup.path) {
                 try removeIfPresent(destination)
                 try createParent(of: destination)
                 try manager.moveItem(at: backup, to: destination)
@@ -229,67 +315,182 @@ extension Courier
         return value.uint64Value
     }
 
+    private func prepareReplacement(
+        operationID: UInt64,
+        tracker: TransferProgressTracker,
+        index: Int,
+        count: Int,
+        planned: PlannedReplacement,
+        stagingRoot: URL,
+        version: String,
+        totalBytes: UInt64) async throws
+    {
+        let fileManager = FileManager.default
+        let staged = try safeDestination(root: stagingRoot, relativePath: planned.stagedRelativePath)
+        try createParent(of: staged)
+        let url = try urlForContent(
+            base: cdnBaseURL, version: version, relativePath: planned.entry.relativePath)
+        let expectedSize = UInt64(planned.entry.manifest.size)
+        var performedCleanRedownload = false
+        var downloadedThisRun = false
+
+        while true {
+            try Task.checkCancellation()
+            var storedSize = (try? fileManager.attributesOfItem(atPath: staged.path)[.size] as? NSNumber)?.uint64Value ?? 0
+            if storedSize > expectedSize {
+                try removeIfPresent(staged)
+                storedSize = 0
+                _ = tracker.reset(index: index)
+            }
+
+            if storedSize < expectedSize {
+                downloadedThisRun = true
+                let start = tracker.update(index: index, received: storedSize, transferred: 0)
+                let startOrdinal = min(count, start.completedFiles + 1)
+                reportProgress(
+                    operationID, courier_phase_downloading,
+                    storedSize > 0
+                        ? "Resuming (\(startOrdinal)/\(count))"
+                        : "Downloading (\(startOrdinal)/\(count))",
+                    totalBytes > 0
+                        ? Int(Double(start.received) / Double(totalBytes) * 100.0)
+                        : 0,
+                    start.received, totalBytes, start.throughput, startOrdinal, count)
+
+                let resumedThisRequest = storedSize > 0
+                try await streamingDownload(
+                    from: url,
+                    to: staged,
+                    expectedSize: planned.entry.manifest.size)
+                { byteCount, fileReceived in
+                    let snapshot = tracker.update(
+                        index: index, received: fileReceived, transferred: byteCount)
+                    guard snapshot.shouldReport else { return }
+                    let ordinal = min(count, snapshot.completedFiles + 1)
+                    self.reportProgress(
+                        operationID, courier_phase_downloading,
+                        resumedThisRequest
+                            ? "Resuming (\(ordinal)/\(count))"
+                            : "Downloading (\(ordinal)/\(count))",
+                        totalBytes > 0
+                            ? Int(Double(snapshot.received) / Double(totalBytes) * 100.0)
+                            : 0,
+                        snapshot.received, totalBytes, snapshot.throughput, ordinal, count)
+                }
+            }
+
+            let beforeVerify = tracker.update(
+                index: index, received: expectedSize, transferred: 0)
+            let verifyOrdinal = min(count, beforeVerify.completedFiles + 1)
+            reportProgress(
+                operationID, courier_phase_verifying,
+                "Verifying (\(verifyOrdinal)/\(count))",
+                totalBytes > 0
+                    ? Int(Double(beforeVerify.received) / Double(totalBytes) * 100.0)
+                    : 0,
+                beforeVerify.received, totalBytes, beforeVerify.throughput, verifyOrdinal, count)
+
+            let actualHash = try manifestHashOfFile(
+                at: staged.path,
+                expectedHash: planned.entry.manifest.hash)
+            if actualHash?.caseInsensitiveCompare(planned.entry.manifest.hash) == .orderedSame {
+                let completed = tracker.complete(index: index, expectedSize: expectedSize)
+                let completedOrdinal = completed.completedFiles
+                reportProgress(
+                    operationID, courier_phase_verifying,
+                    "Verified (\(completedOrdinal)/\(count))",
+                    totalBytes > 0
+                        ? Int(Double(completed.received) / Double(totalBytes) * 100.0)
+                        : 100,
+                    completed.received, totalBytes, completed.throughput, completedOrdinal, count)
+
+                let safePath = logSafe(planned.entry.relativePath)
+                if downloadedThisRun {
+                    log(1, "Downloaded \(expectedSize) bytes of \(safePath)")
+                } else {
+                    log(1, "Reused \(expectedSize) verified bytes of \(safePath)")
+                }
+                return
+            }
+
+            try removeIfPresent(staged)
+            _ = tracker.reset(index: index)
+            if performedCleanRedownload {
+                throw Err("Hash mismatch for \(planned.entry.relativePath)")
+            }
+            performedCleanRedownload = true
+            downloadedThisRun = true
+            log(3, "Saved partial data for \(planned.entry.relativePath) was invalid; retrying that file from the beginning")
+        }
+    }
+
     func startUpdateCheck(installPath: String) -> UInt64
     {
         run { [self] operationID in
             let installRoot = try canonicalInstallRoot(installPath)
             try recoverInterruptedUpdate(installRoot: installRoot)
+
+            reportProgress(operationID, courier_phase_preparing,
+                           "Requesting game version...", 0, 0, 0, 0, 0, 0)
             let remote = try await fetchRemoteVersion()
             let local = readLocalVersion(installPath: installPath)
-            reportDone(operationID, local == remote ? courier_result_up_to_date : courier_result_update_available, local == remote ? "up-to-date" : "update-available")
+            reportDone(
+                operationID,
+                local == remote ? courier_result_up_to_date : courier_result_update_available,
+                local == remote ? "up-to-date" : "update-available")
         }
     }
 
     func startUpdate(installPath: String) -> UInt64
+    {
+        startSync(installPath: installPath, useInstalledVersion: false)
+    }
+
+    func startRepair(installPath: String) -> UInt64
+    {
+        startSync(installPath: installPath, useInstalledVersion: true)
+    }
+
+    private func startSync(installPath: String, useInstalledVersion: Bool) -> UInt64
     {
         run { [self] operationID in
             let fileManager = FileManager.default
             let installRoot = try canonicalInstallRoot(installPath, create: true)
             try recoverInterruptedUpdate(installRoot: installRoot)
 
-            reportProgress(operationID, courier_phase_preparing,
-                           "Requesting game version...", 0, 0, 0, 0, 0, 0)
-            let version = try await fetchRemoteVersion()
+            let version: String
+            if useInstalledVersion {
+                guard let installed = readLocalVersion(installPath: installPath),
+                      !installed.isEmpty else {
+                    throw Err("The installed game version could not be determined for repair")
+                }
+                version = installed
+            } else {
+                reportProgress(operationID, courier_phase_preparing,
+                               "Requesting game version...", 0, 0, 0, 0, 0, 0)
+                version = try await fetchRemoteVersion()
+            }
             reportProgress(operationID, courier_phase_preparing,
                            "Requesting manifest...", 0, 0, 0, 0, 0, 0)
             let manifest = try await fetchManifest(version: version)
 
+            let targetPaths = try managedManifestPaths(installRoot: installRoot, manifest: manifest)
+
+            let mismatched = try await mismatchedManifestIndices(
+                operationID: operationID,
+                installRoot: installRoot,
+                manifest: manifest,
+                relativePaths: targetPaths,
+                phase: courier_phase_checking,
+                action: "Checking")
             var needed: [PlannedReplacement] = []
-            var targetPaths: [String] = []
-            var targetPathKeys: Set<String> = []
-            targetPaths.reserveCapacity(manifest.count)
-
-            for (index, entry) in manifest.enumerated() {
-                try Task.checkCancellation()
-                let targetRelative = try actualManagedRelativePath(installRoot: installRoot, entry: entry)
-                let destination = try safeDestination(root: installRoot, relativePath: targetRelative)
-                let targetKey = targetRelative.folding(
-                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                    locale: Locale(identifier: "en_US_POSIX"))
-                guard targetPathKeys.insert(targetKey).inserted else {
-                    throw Err("Manifest entries resolve to the same destination: \(targetRelative)")
-                }
-                targetPaths.append(targetRelative)
-
-                let completed = Double(index + 1)
-                let total = Double(manifest.count)
-                let percent = Int(completed / total * 100.0)
-                reportProgress(operationID, courier_phase_checking,
-                               "Checking (\(index + 1)/\(manifest.count))", percent,
-                               0, 0, 0, index + 1, manifest.count)
-                let hash = try manifestHashOfFile(
-                    at: destination.path,
-                    expectedHash: entry.manifest.hash) { _ in
-                    self.reportProgress(operationID, courier_phase_checking,
-                                        "Checking (\(index + 1)/\(manifest.count))", percent,
-                                        0, 0, 0, index + 1, manifest.count)
-                }
-                if hash == nil || hash?.caseInsensitiveCompare(entry.manifest.hash) != .orderedSame {
-                    needed.append(PlannedReplacement(
-                        entry: entry,
-                        stagedRelativePath: entry.relativePath,
-                        targetRelativePath: targetRelative))
-                }
+            needed.reserveCapacity(mismatched.count)
+            for index in manifest.indices where mismatched.contains(index) {
+                let entry = manifest[index]
+                needed.append(PlannedReplacement(
+                    entry: entry,
+                    stagedRelativePath: entry.relativePath,
+                    targetRelativePath: targetPaths[index]))
             }
 
             let priorManaged = readManagedManifest(installRoot: installRoot)
@@ -310,6 +511,22 @@ extension Courier
                 } catch {
                     log(3, "Ignoring unsafe path in local managed manifest: \(raw)")
                 }
+            }
+
+            let unexpected = try unexpectedInstallFiles(
+                installRoot: installRoot,
+                expectedRelativePaths: targetPaths)
+            if !unexpected.isEmpty {
+                for path in unexpected.prefix(20) {
+                    log(3, "Removing unexpected game file: \(logSafe(path))")
+                }
+                if unexpected.count > 20 {
+                    log(3, "\(unexpected.count - 20) additional unexpected game files were omitted from the log")
+                }
+                obsolete.append(contentsOf: unexpected)
+            }
+            obsolete = Array(Set(obsolete)).sorted {
+                $0.localizedStandardCompare($1) == .orderedAscending
             }
 
             let totalBytes = try needed.reduce(UInt64(0)) { partial, planned in
@@ -346,15 +563,28 @@ extension Courier
             try atomicWriteJSON(expectedStagingManifest, to: stagingManifestURL)
 
             var resumableBytes: UInt64 = 0
-            for planned in needed {
+            var initialReceived: [Int: UInt64] = [:]
+            initialReceived.reserveCapacity(needed.count)
+            for (index, planned) in needed.enumerated() {
                 let staged = try safeDestination(root: stagingRoot, relativePath: planned.stagedRelativePath)
                 let storedSize = (try? fileManager.attributesOfItem(atPath: staged.path)[.size] as? NSNumber)?.uint64Value ?? 0
-                resumableBytes += min(storedSize, UInt64(planned.entry.manifest.size))
+                let reusable = min(storedSize, UInt64(planned.entry.manifest.size))
+                initialReceived[index] = reusable
+                resumableBytes += reusable
             }
             let remainingBytes = totalBytes > resumableBytes ? totalBytes - resumableBytes : 0
             var backupBytes: UInt64 = 0
-            for relative in needed.map(\.targetRelativePath) + obsolete {
-                let destination = try safeDestination(root: installRoot, relativePath: relative)
+            for relative in needed.map(\.targetRelativePath) {
+                let destination = try safeDestination(
+                    root: installRoot, relativePath: relative, includeLeafSymlinkCheck: false)
+                if let number = try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? NSNumber {
+                    let (sum, overflow) = backupBytes.addingReportingOverflow(number.uint64Value)
+                    if overflow { throw Err("Update backup size is too large") }
+                    backupBytes = sum
+                }
+            }
+            for relative in obsolete {
+                let destination = try safeExistingDestination(root: installRoot, relativePath: relative)
                 if let number = try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? NSNumber {
                     let (sum, overflow) = backupBytes.addingReportingOverflow(number.uint64Value)
                     if overflow { throw Err("Update backup size is too large") }
@@ -371,133 +601,66 @@ extension Courier
                 throw Err("Not enough free disk space to stage, back up, and finish this update")
             }
 
-            var completedBytes: UInt64 = 0
-            var windowStart = Date()
-            var windowBytes: UInt64 = 0
-            var throughput: UInt64 = 0
-            var lastProgressReport = Date.distantPast
+            let tracker = TransferProgressTracker(initialReceived: initialReceived)
+            if !needed.isEmpty {
+                let concurrency = min(4, needed.count)
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    var nextIndex = 0
 
-            for (index, planned) in needed.enumerated() {
-                try Task.checkCancellation()
-                let staged = try safeDestination(root: stagingRoot, relativePath: planned.stagedRelativePath)
-                try createParent(of: staged)
-                let url = try urlForContent(
-                    base: cdnBaseURL, version: version, relativePath: planned.entry.relativePath)
-                let expectedSize = UInt64(planned.entry.manifest.size)
-                var performedCleanRedownload = false
-                var transferredBytesThisRun: UInt64 = 0
-
-                while true {
-                    try Task.checkCancellation()
-                    var storedSize = (try? fileManager.attributesOfItem(atPath: staged.path)[.size] as? NSNumber)?.uint64Value ?? 0
-                    if storedSize > expectedSize {
-                        try removeIfPresent(staged)
-                        storedSize = 0
+                    while nextIndex < concurrency {
+                        let index = nextIndex
+                        let planned = needed[index]
+                        group.addTask { [self] in
+                            try await prepareReplacement(
+                                operationID: operationID,
+                                tracker: tracker,
+                                index: index,
+                                count: needed.count,
+                                planned: planned,
+                                stagingRoot: stagingRoot,
+                                version: version,
+                                totalBytes: totalBytes)
+                        }
+                        nextIndex += 1
                     }
 
-                    if storedSize < expectedSize {
-                        let receivedBeforeRequest = completedBytes + storedSize
-                        reportProgress(
-                            operationID, courier_phase_downloading,
-                            storedSize > 0
-                                ? "Resuming (\(index + 1)/\(needed.count))"
-                                : "Downloading (\(index + 1)/\(needed.count))",
-                            totalBytes > 0
-                                ? Int(Double(receivedBeforeRequest) / Double(totalBytes) * 100)
-                                : 0,
-                            receivedBeforeRequest, totalBytes, throughput, index + 1, needed.count)
-
-                        let resumedThisRequest = storedSize > 0
-                        try await streamingDownload(
-                            from: url,
-                            to: staged,
-                            expectedSize: planned.entry.manifest.size)
-                        { byteCount, fileReceived in
-                            let transferred = UInt64(byteCount)
-                            transferredBytesThisRun += transferred
-                            windowBytes += transferred
-                            let now = Date()
-                            let elapsed = now.timeIntervalSince(windowStart)
-                            if elapsed >= 1.0 && windowBytes > 0 {
-                                throughput = UInt64(Double(windowBytes) / elapsed)
-                                windowBytes = 0
-                                windowStart = now
+                    while try await group.next() != nil {
+                        try Task.checkCancellation()
+                        if nextIndex < needed.count {
+                            let index = nextIndex
+                            let planned = needed[index]
+                            group.addTask { [self] in
+                                try await prepareReplacement(
+                                    operationID: operationID,
+                                    tracker: tracker,
+                                    index: index,
+                                    count: needed.count,
+                                    planned: planned,
+                                    stagingRoot: stagingRoot,
+                                    version: version,
+                                    totalBytes: totalBytes)
                             }
-                            let received = completedBytes + fileReceived
-                            let percent = totalBytes > 0
-                                ? Int(Double(received) / Double(totalBytes) * 100)
-                                : 0
-                            if now.timeIntervalSince(lastProgressReport) >= 0.1 || received >= totalBytes {
-                                lastProgressReport = now
-                                self.reportProgress(
-                                    operationID, courier_phase_downloading,
-                                    resumedThisRequest
-                                        ? "Resuming (\(index + 1)/\(needed.count))"
-                                        : "Downloading (\(index + 1)/\(needed.count))",
-                                    percent, received, totalBytes, throughput,
-                                    index + 1, needed.count)
-                            }
+                            nextIndex += 1
                         }
                     }
-
-                    reportProgress(
-                        operationID, courier_phase_verifying,
-                        "Verifying (\(index + 1)/\(needed.count))",
-                        totalBytes > 0
-                            ? Int(Double(completedBytes) / Double(totalBytes) * 100)
-                            : 0,
-                        completedBytes, totalBytes, throughput, index + 1, needed.count)
-
-                    let actualHash = try manifestHashOfFile(
-                        at: staged.path,
-                        expectedHash: planned.entry.manifest.hash,
-                        progress: { _ in
-                        self.reportProgress(
-                            operationID, courier_phase_verifying,
-                            "Verifying (\(index + 1)/\(needed.count))",
-                            totalBytes > 0
-                                ? Int(Double(completedBytes) / Double(totalBytes) * 100)
-                                : 0,
-                            completedBytes, totalBytes, throughput, index + 1, needed.count)
-                    })
-                    if actualHash?.caseInsensitiveCompare(planned.entry.manifest.hash) == .orderedSame {
-                        break
-                    }
-
-                    try removeIfPresent(staged)
-                    if performedCleanRedownload {
-                        throw Err("Hash mismatch for \(planned.entry.relativePath)")
-                    }
-                    performedCleanRedownload = true
-                    log(3, "Saved partial data for \(planned.entry.relativePath) was invalid; retrying that file from the beginning")
                 }
-
-                let safePath = logSafe(planned.entry.relativePath)
-                if transferredBytesThisRun > 0 {
-                    log(1, "Downloaded \(expectedSize) bytes of \(safePath) (\(index + 1)/\(needed.count))")
-                } else {
-                    log(1, "Reused \(expectedSize) verified bytes of \(safePath) (\(index + 1)/\(needed.count))")
-                }
-
-                completedBytes += expectedSize
-                reportProgress(
-                    operationID, courier_phase_verifying,
-                    "Verified (\(index + 1)/\(needed.count))",
-                    totalBytes > 0 ? Int(Double(completedBytes) / Double(totalBytes) * 100) : 100,
-                    completedBytes, totalBytes, throughput, index + 1, needed.count)
             }
 
             let replacementPaths = needed.map(\.targetRelativePath)
             let replacementHadOriginal = try replacementPaths.map {
-                let destination = try safeDestination(root: installRoot, relativePath: $0)
+                let destination = try safeDestination(
+                    root: installRoot, relativePath: $0, includeLeafSymlinkCheck: false)
                 return fileManager.fileExists(atPath: destination.path)
+                    || isSymbolicLink(destination.path)
             }
+            let obsoleteBackupPaths = obsolete.indices.map { ".soa-obsolete/\($0)" }
             let journal = UpdateJournal(
-                schemaVersion: 2,
+                schemaVersion: 3,
                 replacementPaths: replacementPaths,
                 replacementHadOriginal: replacementHadOriginal,
                 replacementStagedPaths: needed.map(\.stagedRelativePath),
                 obsoletePaths: obsolete,
+                obsoleteBackupPaths: obsoleteBackupPaths,
                 versionMetadataExisted: fileManager.fileExists(atPath: installRoot.appendingPathComponent("version.json").path),
                 managedMetadataExisted: fileManager.fileExists(atPath: installRoot.appendingPathComponent(managedManifestFileName).path))
             let journalURL = installRoot.appendingPathComponent(journalFileName)
@@ -510,23 +673,26 @@ extension Courier
                 for planned in needed {
                     try Task.checkCancellation()
                     let staged = try safeDestination(root: stagingRoot, relativePath: planned.stagedRelativePath)
-                    let destination = try safeDestination(root: installRoot, relativePath: planned.targetRelativePath)
+                    let destination = try safeDestination(
+                        root: installRoot, relativePath: planned.targetRelativePath,
+                        includeLeafSymlinkCheck: false)
                     let backup = try safeDestination(root: backupRoot, relativePath: planned.targetRelativePath)
-                    try ensureNoSymlinkEscape(root: installRoot, relativePath: planned.targetRelativePath, includeLeaf: true)
                     try createParent(of: destination)
 
-                    if fileManager.fileExists(atPath: destination.path) {
+                    if fileManager.fileExists(atPath: destination.path)
+                        || isSymbolicLink(destination.path) {
                         try createParent(of: backup)
                         try fileManager.moveItem(at: destination, to: backup)
                     }
                     try fileManager.moveItem(at: staged, to: destination)
                 }
 
-                for relative in obsolete {
+                for (index, relative) in obsolete.enumerated() {
                     try Task.checkCancellation()
-                    let destination = try safeDestination(root: installRoot, relativePath: relative)
-                    guard fileManager.fileExists(atPath: destination.path) else { continue }
-                    let backup = try safeDestination(root: backupRoot, relativePath: relative)
+                    let destination = try safeExistingDestination(root: installRoot, relativePath: relative)
+                    guard fileManager.fileExists(atPath: destination.path)
+                            || isSymbolicLink(destination.path) else { continue }
+                    let backup = try safeExistingDestination(root: backupRoot, relativePath: obsoleteBackupPaths[index])
                     try createParent(of: backup)
                     try fileManager.moveItem(at: destination, to: backup)
                 }

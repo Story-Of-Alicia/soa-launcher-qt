@@ -34,11 +34,10 @@ void MainWindow::continue_after_launcher_update_check()
 {
     if (launcher_update_check_complete)
         return;
+
     launcher_update_check_complete = true;
-    install_state->probe();
-    shell->detect_existing_game();
-    refresh_tray_actions();
-    raise_persistent_controls();
+    if (launch_after_preflight_check)
+        install_state->recheck_before_launch();
 }
 
 void MainWindow::set_game_version(const GameVersion version)
@@ -125,12 +124,49 @@ void MainWindow::open_for_current_stage()
         game_install->refresh_game_path();
         open_overlay(game_install);
     }
+    else if (install_state->stage() == Stage::NeedsUpdate && update_progress)
+    {
+        open_overlay(update_progress);
+        update_progress->start_download();
+    }
     else if (view == View::Rules) open_overlay(rules_agreement);
 }
 
 void MainWindow::on_stage_changed(const Stage stage)
 {
     set_game_switching_enabled(stage);
+
+    if (integrity_watcher)
+    {
+        const bool files_changing = repair_active
+            || stage == Stage::Downloading
+            || stage == Stage::Updating;
+        integrity_watcher->set_suspended(files_changing);
+    }
+
+    if (launch_after_preflight_check)
+    {
+        if (stage == Stage::Ready)
+        {
+            launch_after_preflight_check = false;
+            if (update_progress && update_progress->isVisible())
+                close_overlay(update_progress);
+            shell->run_game(Config::instance().username(), Config::instance().token());
+            refresh_tray_actions();
+            return;
+        }
+        if (stage != Stage::CheckingUpdate && stage != Stage::Updating)
+        {
+            launch_after_preflight_check = false;
+            show_launcher();
+        }
+    }
+
+    if (stage == Stage::Ready && update_progress
+        && update_progress->isVisible() && update_progress->observing_operation())
+    {
+        close_overlay(update_progress);
+    }
 
     const bool settingsEditable = !repair_active
         && stage != Stage::SettingUpPrefix
@@ -152,16 +188,6 @@ void MainWindow::on_stage_changed(const Stage stage)
                 ? QStringLiteral("Disabled while Alicia is running")
                 : QStringLiteral(
                     "Settings are read-only while Alicia or another launcher operation is active."));
-    }
-
-    if (integrity_watcher)
-    {
-        const bool files_changing = repair_active
-            || stage == Stage::Downloading
-            || stage == Stage::Updating
-            || stage == Stage::Launching
-            || stage == Stage::Running;
-        integrity_watcher->set_suspended(files_changing);
     }
 
     if (repair_active && repair_progress && repair_progress->isVisible())
@@ -262,17 +288,18 @@ void MainWindow::on_overlay_closed(soa::ui::ModalOverlay*)
 
 void MainWindow::open_overlay(soa::ui::ModalOverlay* overlay)
 {
-    if (!overlay->isVisible())
+    if (overlay->isHidden())
     {
         overlay->show_over(this);
         on_overlay_opened(overlay);
-        raise_persistent_controls();
     }
+    overlay->raise();
+    raise_persistent_controls();
 }
 
 void MainWindow::close_overlay(soa::ui::ModalOverlay* overlay)
 {
-    if (overlay->isVisible())
+    if (!overlay->isHidden())
     {
         overlay->hide();
         on_overlay_closed(overlay);

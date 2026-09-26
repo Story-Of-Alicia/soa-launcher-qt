@@ -41,53 +41,54 @@ func logSafe(_ value: String) -> String
     }.joined()
 }
 
-struct ManifestEntry: Codable
+struct ManifestEntry: Codable, Sendable
 {
     let path: String
     let hash: String
     let size: Int
 }
 
-struct Manifest: Codable
+struct Manifest: Codable, Sendable
 {
     let files: [ManifestEntry]
 }
 
-struct ValidatedManifestEntry
+struct ValidatedManifestEntry: Sendable
 {
     let manifest: ManifestEntry
     let relativePath: String
     let collisionKey: String
 }
 
-struct ManagedManifest: Codable
+struct ManagedManifest: Codable, Sendable
 {
     let schemaVersion: Int
     let releaseVersion: String
     let files: [String]
 }
 
-struct StagingManifestEntry: Codable, Equatable
+struct StagingManifestEntry: Codable, Equatable, Sendable
 {
     let path: String
     let hash: String
     let size: Int
 }
 
-struct StagingManifest: Codable, Equatable
+struct StagingManifest: Codable, Equatable, Sendable
 {
     let schemaVersion: Int
     let releaseVersion: String
     let files: [StagingManifestEntry]
 }
 
-struct UpdateJournal: Codable
+struct UpdateJournal: Codable, Sendable
 {
     let schemaVersion: Int
     let replacementPaths: [String]
     let replacementHadOriginal: [Bool]
     let replacementStagedPaths: [String]?
     let obsoletePaths: [String]
+    let obsoleteBackupPaths: [String]?
     let versionMetadataExisted: Bool
     let managedMetadataExisted: Bool
 }

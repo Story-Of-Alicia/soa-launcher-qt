@@ -37,6 +37,7 @@ public:
 signals:
     void settings_requested();
     void download_triggered();
+    void launch_requested();
     void reset_config_requested();
 
 private:

@@ -39,7 +39,7 @@ RepairFiles::RepairFiles(QWidget* parent)
 
 void RepairFiles::refresh()
 {
-    detected_message.clear();
+    detected_changes.clear();
     game_version = Config::instance().game_version();
     install_path = Config::instance().game_install_path(game_version);
     repair_button->setEnabled(QFileInfo::exists(install_path)
@@ -58,21 +58,47 @@ void RepairFiles::set_game_version(const soa::common::game::GameVersion version)
 
 void RepairFiles::set_detected_changes(const QStringList& paths)
 {
-    if (paths.isEmpty())
-    {
-        detected_message.clear();
-    }
-    else if (paths.size() == 1)
-    {
-        detected_message = QStringLiteral("The launcher detected a protected file change: %1")
-            .arg(paths.front());
-    }
-    else
-    {
-        detected_message = QStringLiteral("The launcher detected %1 protected file changes.")
-            .arg(paths.size());
-    }
+    detected_changes = paths;
     update();
+}
+
+QString RepairFiles::detected_message() const
+{
+    if (detected_changes.isEmpty())
+        return {};
+
+    QStringList lines;
+    const qsizetype shown = qMin<qsizetype>(3, detected_changes.size());
+    for (qsizetype index = 0; index < shown; ++index)
+    {
+        const QString& change = detected_changes.at(index);
+        if (change.startsWith(QStringLiteral("unexpected:")))
+        {
+            lines.push_back(soa::i18n::translate("Unexpected file detected: %1")
+                                .arg(change.sliced(11)));
+        }
+        else if (change.startsWith(QStringLiteral("missing:")))
+        {
+            lines.push_back(soa::i18n::translate("Required file is missing: %1")
+                                .arg(change.sliced(8)));
+        }
+        else if (change.startsWith(QStringLiteral("modified:")))
+        {
+            lines.push_back(soa::i18n::translate("Protected file was modified: %1")
+                                .arg(change.sliced(9)));
+        }
+        else
+        {
+            lines.push_back(soa::i18n::translate("Protected file changed: %1").arg(change));
+        }
+    }
+
+    if (detected_changes.size() > shown)
+    {
+        lines.push_back(soa::i18n::translate("%1 more file changes were detected.")
+                            .arg(detected_changes.size() - shown));
+    }
+    return lines.join(QLatin1Char('\n'));
 }
 
 void RepairFiles::setup_buttons()
@@ -152,7 +178,7 @@ void RepairFiles::paint_content(QPainter& painter)
     const QString game_name = QString::fromLatin1(soa::common::game::profile(game_version).display_name);
     painter.drawText(local_rect(w, {45, 80, 470, 44}),
                      Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap,
-                     soa::i18n::translate("The launcher will verify every %1 file against the current CDN manifest.")
+                     soa::i18n::translate("The launcher will verify every %1 file against the installed game version's manifest.")
                          .arg(game_name));
 
     const QRect path_box = local_rect(w, {45, 139, 470, 57});
@@ -179,9 +205,10 @@ void RepairFiles::paint_content(QPainter& painter)
     painter.drawText(note_box.adjusted(soa::ui::layout::scaled(18, w), soa::ui::layout::scaled(12, w),
                                        -soa::ui::layout::scaled(18, w), -soa::ui::layout::scaled(10, w)),
                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
-                     detected_message.isEmpty()
+                     detected_changes.isEmpty()
                          ? soa::i18n::translate("Missing or damaged files will be downloaded again. Valid files and resumable partial downloads are kept, so the repair does not restart the whole game.")
-                         : soa::i18n::translate("%1 Verify and repair before launching again.").arg(detected_message));
+                         : soa::i18n::translate("%1 Verify and repair before launching again.")
+                               .arg(detected_message()));
 }
 
 bool RepairFiles::eventFilter(QObject* object, QEvent* event)

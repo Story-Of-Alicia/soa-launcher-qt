@@ -26,6 +26,7 @@ add_library(soa_network SHARED
         CourierUpdate.swift
         CourierDownload.swift
         CourierIntegrity.swift
+        CourierVerification.swift
         CourierPaths.swift
         CourierTransfer.swift
         CourierTypes.swift
