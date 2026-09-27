@@ -301,7 +301,10 @@ func unexpectedInstallFiles(installRoot: URL, expectedRelativePaths: [String]) t
         } else if values.isDirectory == true {
             continue
         } else if values.isRegularFile == true {
-            if !expected.contains(key) && !allowedTopLevel.contains(key) && !dxvkAllowed.contains(key) {
+            let isDxvkCache = !relative.contains("/")
+                && relative.lowercased().hasSuffix(".dxvk-cache")
+            if !expected.contains(key) && !allowedTopLevel.contains(key)
+                && !dxvkAllowed.contains(key) && !isDxvkCache {
                 unexpected.append(relative)
             }
         } else {

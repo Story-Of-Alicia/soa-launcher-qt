@@ -18,6 +18,7 @@
 #include "runtime/ProcessRunner.hpp"
 #include "runtime/RuntimeLocator.hpp"
 #include "runtime/WineProcess.hpp"
+#include "runtime/WineRegistry.hpp"
 #include "common/DesktopEntry.hpp"
 #include "common/LaunchArguments.hpp"
 
@@ -114,6 +115,40 @@ private slots:
 
 
 #if defined(Q_OS_LINUX)
+    void managed_umu_requires_folder_redirection_support()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        const auto makeUmu = [&directory](const QString& name, const QString& version)
+        {
+            const QString path = directory.filePath(name);
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly))
+                return QString();
+            const QByteArray script = QByteArray("#!/bin/sh\necho 'umu-launcher version ")
+                + version.toUtf8() + QByteArray("'\n");
+            if (file.write(script) != script.size())
+                return QString();
+            file.close();
+            if (!file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                     | QFileDevice::ExeOwner))
+                return QString();
+            return path;
+        };
+
+        const QString oldUmu = makeUmu(QStringLiteral("umu-old"), QStringLiteral("1.3.0"));
+        const QString supportedUmu = makeUmu(QStringLiteral("umu-new"), QStringLiteral("1.4.0"));
+        const QString futureUmu = makeUmu(QStringLiteral("umu-future"), QStringLiteral("2.0.0"));
+        QVERIFY(!oldUmu.isEmpty());
+        QVERIFY(!supportedUmu.isEmpty());
+        QVERIFY(!futureUmu.isEmpty());
+
+        QVERIFY(!soa::runtime::umu_executable_supports_managed_folders(oldUmu));
+        QVERIFY(soa::runtime::umu_executable_supports_managed_folders(supportedUmu));
+        QVERIFY(soa::runtime::umu_executable_supports_managed_folders(futureUmu));
+    }
+
     void umu_environment_uses_prefix_without_direct_proton_compat_path()
     {
         QTemporaryDir directory;
@@ -132,6 +167,19 @@ private slots:
         EnvironmentOverride compat_client("STEAM_COMPAT_CLIENT_INSTALL_PATH", QByteArray("/steam"));
         EnvironmentOverride steam_app("SteamAppId", QByteArray("123"));
         EnvironmentOverride steam_game("SteamGameId", QByteArray("456"));
+        EnvironmentOverride compat_libraries("STEAM_COMPAT_LIBRARY_PATHS",
+                                             QByteArray("/steam/library"));
+        EnvironmentOverride umu_folders("UMU_FOLDERS_PATH", QByteArray("/outside/launcher"));
+        EnvironmentOverride proton_path("PROTONPATH", QByteArray("/outside/proton"));
+        EnvironmentOverride proton_verb("PROTON_VERB", QByteArray("runinprefix"));
+        EnvironmentOverride proton_wined3d("PROTON_USE_WINED3D", QByteArray("1"));
+        EnvironmentOverride no_proton("UMU_NO_PROTON", QByteArray("1"));
+        EnvironmentOverride no_runtime("UMU_NO_RUNTIME", QByteArray("1"));
+        EnvironmentOverride runtime_update("UMU_RUNTIME_UPDATE", QByteArray("0"));
+        EnvironmentOverride container_nsenter("UMU_CONTAINER_NSENTER", QByteArray("1"));
+        EnvironmentOverride zenity("UMU_ZENITY", QByteArray("1"));
+        EnvironmentOverride runtime_path("RUNTIMEPATH", QByteArray("steamrt2"));
+        EnvironmentOverride umu_steam_game("UMU_STEAM_GAME_ID", QByteArray("789"));
         EnvironmentOverride preload(
             "LD_PRELOAD",
             QByteArray("/steam/gameoverlayrenderer.so:/usr/lib/libgamemodeauto.so.0"));
@@ -139,23 +187,108 @@ private slots:
 
         const QString prefix = directory.filePath(QStringLiteral("compat/pfx"));
         const QString compat = directory.filePath(QStringLiteral("compat"));
-        soa::runtime::RuntimeSettings settings {proton, prefix, compat, QStringLiteral("win64"),
-                                               QString(), true};
+        soa::runtime::RuntimeSettings settings {
+            proton, prefix, compat, QStringLiteral("win64"),
+            QStringLiteral("UMU_FOLDERS_PATH=/escape UMU_NO_RUNTIME=1 RUNTIMEPATH=steamrt2"),
+            true};
         const QProcessEnvironment environment =
             soa::runtime::RuntimeLocator::make_umu_environment(settings, directory.path());
 
 
 
-        QCOMPARE(environment.value(QStringLiteral("WINEPREFIX")), compat);
+        QCOMPARE(environment.value(QStringLiteral("WINEPREFIX")), prefix);
         QCOMPARE(environment.value(QStringLiteral("PROTONPATH")), directory.path());
+        QVERIFY(!environment.contains(QStringLiteral("PROTON_VERB")));
+        QVERIFY(!environment.contains(QStringLiteral("PROTON_USE_WINED3D")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_NO_PROTON")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_NO_RUNTIME")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_RUNTIME_UPDATE")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_CONTAINER_NSENTER")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_ZENITY")));
+        QVERIFY(!environment.contains(QStringLiteral("UMU_STEAM_GAME_ID")));
+        QVERIFY(!environment.contains(QStringLiteral("RUNTIMEPATH")));
         QCOMPARE(environment.value(QStringLiteral("GAMEID")), QStringLiteral("umu-storyofalicia"));
-        QCOMPARE(environment.value(QStringLiteral("SteamGameId")), QStringLiteral("456"));
+        QCOMPARE(environment.value(QStringLiteral("UMU_FOLDERS_PATH")),
+                 soa::runtime::managed_umu_data_home());
+        QVERIFY(!environment.contains(QStringLiteral("SteamGameId")));
         QCOMPARE(environment.value(QStringLiteral("TMPDIR")), tmp);
         QVERIFY(!environment.contains(QStringLiteral("STEAM_COMPAT_DATA_PATH")));
         QVERIFY(!environment.contains(QStringLiteral("STEAM_COMPAT_CLIENT_INSTALL_PATH")));
+        QVERIFY(!environment.contains(QStringLiteral("STEAM_COMPAT_LIBRARY_PATHS")));
         QVERIFY(!environment.contains(QStringLiteral("SteamAppId")));
         QCOMPARE(environment.value(QStringLiteral("LD_PRELOAD")),
                  QStringLiteral("/usr/lib/libgamemodeauto.so.0"));
+    }
+
+    void managed_umu_proton_omits_protonpath()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString prefix = directory.filePath(QStringLiteral("compat/pfx"));
+        const QString compat = directory.filePath(QStringLiteral("compat"));
+        soa::runtime::RuntimeSettings settings {
+            soa::runtime::managed_proton_identifier(), prefix, compat,
+            QStringLiteral("win64"), QString(), true};
+
+        const QProcessEnvironment environment =
+            soa::runtime::RuntimeLocator::make_umu_environment(
+                settings, soa::runtime::managed_proton_identifier());
+
+        QVERIFY(!environment.contains(QStringLiteral("PROTONPATH")));
+        QCOMPARE(environment.value(QStringLiteral("WINEPREFIX")), prefix);
+        QCOMPARE(environment.value(QStringLiteral("UMU_FOLDERS_PATH")),
+                 soa::runtime::managed_umu_data_home());
+        QVERIFY(QFileInfo(soa::runtime::managed_proton_identifier()).isAbsolute());
+        QVERIFY(soa::runtime::managed_proton_identifier().startsWith(
+            QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                .filePath(QStringLiteral("runtimes")) + QDir::separator()));
+        QCOMPARE(soa::runtime::WineRegistry::identify(
+                     soa::runtime::managed_proton_identifier()),
+                 soa::runtime::RuntimeType::Proton);
+    }
+
+
+    void managed_proton_detection_does_not_capture_custom_builds()
+    {
+        const QString dataHome = soa::runtime::managed_umu_data_home();
+        const QString managed = QDir(dataHome).filePath(
+            QStringLiteral("Steam/compatibilitytools.d/UMU-Proton-10.0-4"));
+        const QString custom = QDir(dataHome).filePath(
+            QStringLiteral("Steam/compatibilitytools.d/GE-Proton10-15"));
+
+        QVERIFY(soa::runtime::is_managed_proton(managed));
+        QVERIFY(!soa::runtime::is_managed_proton(custom));
+    }
+
+    void custom_proton_requires_internal_wine_entry_point()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString proton = directory.filePath(QStringLiteral("proton"));
+        QFile protonFile(proton);
+        QVERIFY(protonFile.open(QIODevice::WriteOnly));
+        QVERIFY(protonFile.write("#!/bin/sh\nexit 0\n") > 0);
+        protonFile.close();
+        QVERIFY(protonFile.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                          | QFileDevice::ExeOwner));
+
+        bool usable = true;
+        QCOMPARE(soa::runtime::WineRegistry::identify(directory.path(), &usable),
+                 soa::runtime::RuntimeType::Proton);
+        QVERIFY(!usable);
+
+        const QString bin = directory.filePath(QStringLiteral("files/bin"));
+        QVERIFY(QDir().mkpath(bin));
+        QFile wine(QDir(bin).filePath(QStringLiteral("wine")));
+        QVERIFY(wine.open(QIODevice::WriteOnly));
+        QVERIFY(wine.write("#!/bin/sh\nexit 0\n") > 0);
+        wine.close();
+        QVERIFY(wine.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                    | QFileDevice::ExeOwner));
+
+        QCOMPARE(soa::runtime::WineRegistry::identify(directory.path(), &usable),
+                 soa::runtime::RuntimeType::Proton);
+        QVERIFY(usable);
     }
 
     void umu_environment_drops_invalid_tmpdir()
@@ -176,37 +309,6 @@ private slots:
         QCOMPARE(environment.value(QStringLiteral("WINEPREFIX")), prefix);
     }
 
-    void repairs_doubled_proton_prefix()
-    {
-        QTemporaryDir directory;
-        QVERIFY(directory.isValid());
-        const QDir root(directory.path());
-        const QString prefix = root.filePath(QStringLiteral("pfx"));
-        const QString inner = QDir(prefix).filePath(QStringLiteral("pfx"));
-        QVERIFY(QDir().mkpath(QDir(inner).filePath(QStringLiteral("drive_c/windows"))));
-        QVERIFY(QFile(QDir(prefix).filePath(QStringLiteral("version"))).open(
-            QIODevice::WriteOnly));
-
-        QVERIFY(soa::runtime::repair_doubled_proton_prefix(directory.path()));
-        QVERIFY(QFileInfo(QDir(prefix).filePath(QStringLiteral("drive_c/windows"))).isDir());
-        QVERIFY(!QFileInfo(inner).exists());
-        QVERIFY(!QFileInfo(root.filePath(QStringLiteral(".pfx-migrating"))).exists());
-
-
-        QVERIFY(!soa::runtime::repair_doubled_proton_prefix(directory.path()));
-    }
-
-    void removes_doubled_proton_prefix_stub()
-    {
-        QTemporaryDir directory;
-        QVERIFY(directory.isValid());
-        const QString inner = QDir(directory.path())
-                                  .filePath(QStringLiteral("pfx/pfx"));
-        QVERIFY(QDir().mkpath(inner));
-
-        QVERIFY(soa::runtime::repair_doubled_proton_prefix(directory.path()));
-        QVERIFY(!QFileInfo(inner).exists());
-    }
 #endif
 
 #if defined(Q_OS_MACOS)

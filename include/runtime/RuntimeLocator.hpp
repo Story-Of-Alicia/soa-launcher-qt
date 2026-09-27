@@ -9,11 +9,6 @@
 namespace soa::runtime
 {
 
-
-
-
-    bool repair_doubled_proton_prefix(const QString& compat_data_root);
-
     struct RuntimeSettings
     {
         QString configured_runtime;

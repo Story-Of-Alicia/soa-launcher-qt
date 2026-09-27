@@ -18,6 +18,9 @@
 #include <QDialog>
 #include <QTimer>
 
+#include "runtime/GameIntegrityWatcher.hpp"
+#include "ui/LanguageSelection.hpp"
+
 using soa::common::game::GameVersion;
 using soa::ui::Stage;
 using soa::ui::View;
@@ -53,6 +56,7 @@ MainWindow::MainWindow(QWidget* parent)
     setup_window_buttons();
     setup_launcher_menu();
     setup_version_label();
+    setup_language_selection();
     setup_settings();
     setup_alicia_chooser();
     setup_prerequisites();
@@ -142,10 +146,14 @@ MainWindow::MainWindow(QWidget* parent)
     raise_persistent_controls();
     QTimer::singleShot(0, this, [this]()
     {
-        install_state->probe();
-        shell->detect_existing_game();
-        refresh_tray_actions();
-        raise_persistent_controls();
+        if (!Config::instance().language_selected())
+        {
+            set_game_switching_enabled(Stage::NeedsLanguage);
+            open_overlay(language_selection);
+            raise_persistent_controls();
+            return;
+        }
+        begin_initial_state();
     });
 
     connect(&soa::i18n::LanguageManager::instance(),
@@ -155,6 +163,16 @@ MainWindow::MainWindow(QWidget* parent)
         retranslate_dynamic_text();
         raise_persistent_controls();
     });
+}
+
+void MainWindow::begin_initial_state()
+{
+    install_state->probe();
+    shell->detect_existing_game();
+    if (integrity_watcher)
+        integrity_watcher->refresh();
+    refresh_tray_actions();
+    raise_persistent_controls();
 }
 
 MainWindow::~MainWindow()

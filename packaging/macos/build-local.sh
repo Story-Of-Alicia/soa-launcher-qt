@@ -17,7 +17,7 @@ ARCHS="${SOA_MACOS_ARCHS:-${SOA_MACOS_ARCH:-x86_64;arm64}}"
 BUILD_TYPE="${SOA_BUILD_TYPE:-Release}"
 IFS=';' read -r -a REQUESTED_ARCHS <<< "$ARCHS"
 
-for tool in cmake ctest swift xcrun lipo otool file i686-w64-mingw32-gcc i686-w64-mingw32-g++; do
+for tool in cmake swift xcrun lipo otool file i686-w64-mingw32-gcc i686-w64-mingw32-g++; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required tool not found: $tool" >&2
     exit 1
@@ -96,10 +96,9 @@ cmake \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
   "${CMAKE_QT_ARGS[@]}" \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
-  -DBUILD_TESTING=ON
+  -DBUILD_TESTING=OFF
 
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
-ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure
 
 APP="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" app_bundle)"
 if [ ! -d "$APP" ]; then

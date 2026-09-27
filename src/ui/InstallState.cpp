@@ -32,6 +32,9 @@ namespace soa::ui
 
     InstallState::InstallState(QObject* parent) : QObject(parent)
     {
+        if (!soa::config::Config::instance().language_selected())
+            current = Stage::NeedsLanguage;
+
         probe_timer = new QTimer(this);
         probe_timer->setSingleShot(true);
         probe_timer->setInterval(0);
@@ -80,6 +83,15 @@ namespace soa::ui
 
     void InstallState::schedule_probe()
     {
+        if (!soa::config::Config::instance().language_selected())
+        {
+            if (current != Stage::NeedsLanguage)
+            {
+                current = Stage::NeedsLanguage;
+                emit stage_changed(current);
+            }
+            return;
+        }
         if (probe_timer && !probe_timer->isActive())
             probe_timer->start();
     }
@@ -146,20 +158,20 @@ namespace soa::ui
 
     void InstallState::probe()
     {
+        if (!soa::config::Config::instance().language_selected())
+        {
+            if (current != Stage::NeedsLanguage)
+            {
+                current = Stage::NeedsLanguage;
+                emit stage_changed(current);
+            }
+            return;
+        }
+
         if (probe_timer)
             probe_timer->stop();
 
         auto& config = soa::config::Config::instance();
-#if !defined(Q_OS_MACOS)
-
-
-
-        if (soa::runtime::WineRegistry::identify(config.wine_binary())
-            == soa::runtime::RuntimeType::Proton)
-        {
-            soa::runtime::repair_doubled_proton_prefix(config.proton_compat_data_root());
-        }
-#endif
         const QString prefix = config.prefix_root();
         prerequisites_confirmed = config.prerequisites_confirmed();
         rules_accepted = config.rules_accepted();

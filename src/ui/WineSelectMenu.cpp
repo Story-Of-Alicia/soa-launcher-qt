@@ -18,11 +18,13 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QShowEvent>
+#include <QSysInfo>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 
+#include "common/AppPaths.hpp"
 #include "common/Log.hpp"
 #include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineRegistry.hpp"
@@ -246,7 +248,7 @@ namespace
             update();
             QAbstractButton::leaveEvent(event);
         }
-    
+
     private:
         QString runtime_name;
         QString runtime_type;
@@ -339,6 +341,59 @@ WineSelectMenu::WineSelectMenu(QWidget* parent) : ModalOverlay(parent)
             [this]() { retranslate_dynamic_text(); });
 }
 
+bool WineSelectMenu::proton_mode() const
+{
+#if defined(Q_OS_MACOS)
+    return false;
+#else
+    return Config::instance().setup_runtime_preference() == QStringLiteral("proton");
+#endif
+}
+
+void WineSelectMenu::filter_runtime_family()
+{
+#if defined(Q_OS_MACOS)
+    runtimes.erase(std::remove_if(runtimes.begin(), runtimes.end(),
+                                  [](const cw::WineInstall& runtime)
+                                  {
+                                      return runtime.type == cw::RuntimeType::Proton;
+                                  }),
+                   runtimes.end());
+#else
+    const bool proton = proton_mode();
+    const QString preference = Config::instance().setup_runtime_preference();
+    if (preference == QStringLiteral("wine") || preference == QStringLiteral("proton"))
+    {
+        runtimes.erase(std::remove_if(runtimes.begin(), runtimes.end(),
+                                      [proton](const cw::WineInstall& runtime)
+                                      {
+                                          return proton
+                                              ? runtime.type != cw::RuntimeType::Proton
+                                              : runtime.type != cw::RuntimeType::Wine;
+                                      }),
+                       runtimes.end());
+    }
+
+    if (proton)
+    {
+        cw::WineInstall managed;
+        QString error;
+        cw::WineRegistry::inspect_path(cw::managed_proton_identifier(), managed, &error);
+        if (managed.path.isEmpty())
+        {
+            managed.name = QStringLiteral("Install Proton automatically");
+            managed.path = cw::managed_proton_identifier();
+            managed.type = cw::RuntimeType::Proton;
+            managed.version = QStringLiteral("Latest stable UMU-Proton");
+            managed.architectures = QSysInfo::currentCpuArchitecture();
+            managed.issue = error;
+            managed.usable = cw::umu_supports_managed_folders();
+        }
+        runtimes.prepend(managed);
+    }
+#endif
+}
+
 void WineSelectMenu::build_ui()
 {
     close_button = soa::ui::simple_utils::make_flat_button(this);
@@ -419,7 +474,8 @@ void WineSelectMenu::populate()
         const QString type = wi.type == cw::RuntimeType::Proton
             ? QStringLiteral("Proton") : QStringLiteral("Wine");
 #endif
-        QString details = wi.version.isEmpty() ? soa::i18n::translate(wi.issue) : wi.version;
+        QString details = wi.version.isEmpty()
+            ? soa::i18n::translate(wi.issue) : soa::i18n::translate(wi.version);
         if (details.isEmpty()) details = soa::i18n::translate("Capability probe failed");
         if (wi.requires_rosetta)
         {
@@ -430,7 +486,10 @@ void WineSelectMenu::populate()
         const QString architecture = wi.architectures.isEmpty()
             ? soa::i18n::translate("unknown architecture") : wi.architectures;
         const QString name = soa::i18n::translate(wi.name);
-        auto* row = new RuntimeRow(name, type, architecture, wi.path, details, content);
+        const QString display_path = cw::is_managed_proton(wi.path)
+            ? soa::i18n::translate("Managed by UMU Launcher")
+            : wi.path;
+        auto* row = new RuntimeRow(name, type, architecture, display_path, details, content);
         row->setEnabled(wi.usable);
         row->setMinimumHeight(qMax(76, soa::ui::layout::scaled(94, window()->size())));
         row->setAccessibleName(soa::i18n::translate("Select runtime: %1").arg(name));
@@ -447,8 +506,9 @@ void WineSelectMenu::populate()
         const QString missingText = QStringLiteral(
             "No usable Wine installation was found. Install Wine or add a Wine app, executable, or folder.");
 #else
-        const QString missingText = QStringLiteral(
-            "No usable Wine or Proton runtimes were found on this system.");
+        const QString missingText = proton_mode()
+            ? QStringLiteral("No installed Proton versions were found. You can let the launcher install Proton automatically instead.")
+            : QStringLiteral("No usable Wine installations were found on this system.");
 #endif
 #if defined(Q_OS_MACOS)
         const QString emptyText =
@@ -456,7 +516,9 @@ void WineSelectMenu::populate()
                      : soa::i18n::translate(missingText);
 #else
         const QString emptyText =
-            scanning ? soa::i18n::translate("Scanning Wine runtimes…")
+            scanning ? soa::i18n::translate(proton_mode()
+                           ? QStringLiteral("Scanning Proton installations…")
+                           : QStringLiteral("Scanning Wine installations…"))
                      : soa::i18n::translate(missingText);
 #endif
         auto* empty = new QLabel(emptyText, content);
@@ -485,10 +547,20 @@ void WineSelectMenu::populate()
     if (rosetta_button) rosetta_button->setVisible(!rosetta);
 #else
     const bool tricks = cw::winetricks_available();
-    runtime_status->setText(tricks
-        ? soa::i18n::translate("winetricks: ready")
-        : soa::i18n::translate(
-              "winetricks not found - required components will be installed manually"));
+    if (proton_mode())
+    {
+        const bool umu = cw::umu_available();
+        runtime_status->setText(soa::i18n::translate("UMU: %1 · Winetricks: %2")
+            .arg(umu ? soa::i18n::translate("ready") : soa::i18n::translate("not found"),
+                 tricks ? soa::i18n::translate("ready") : soa::i18n::translate("not found")));
+    }
+    else
+    {
+        runtime_status->setText(tricks
+            ? soa::i18n::translate("winetricks: ready")
+            : soa::i18n::translate(
+                  "winetricks not found - required components will be installed manually"));
+    }
 #endif
     relayout();
 }
@@ -520,6 +592,7 @@ void WineSelectMenu::start_scan()
 void WineSelectMenu::finish_scan()
 {
     runtimes = detector->result();
+    filter_runtime_family();
     scanning = false;
     rescan_button->setEnabled(true);
     browse_button->setEnabled(true);
@@ -563,8 +636,11 @@ void WineSelectMenu::browse_runtime()
     else
         return;
 #else
-    const QString path = QFileDialog::getOpenFileName(
-        this, soa::i18n::translate("Select Wine Binary or Proton Script"));
+    const QString path = proton_mode()
+        ? QFileDialog::getExistingDirectory(
+              this, soa::i18n::translate("Select Proton Folder"))
+        : QFileDialog::getOpenFileName(
+              this, soa::i18n::translate("Select Wine Binary"));
 #endif
     if (path.isEmpty()) return;
 
@@ -572,10 +648,22 @@ void WineSelectMenu::browse_runtime()
     QString error;
     if (!cw::WineRegistry::inspect_path(path, install, &error))
     {
-        LauncherDialog::warning(this, QStringLiteral("Wine Not Usable"),
-                                error.isEmpty() ? QStringLiteral("The selected Wine installation could not be used.") : error);
+        LauncherDialog::warning(this, QStringLiteral("Runtime Not Usable"),
+                                error.isEmpty() ? QStringLiteral("The selected runtime could not be used.") : error);
         return;
     }
+#if !defined(Q_OS_MACOS)
+    if ((proton_mode() && install.type != cw::RuntimeType::Proton)
+        || (!proton_mode() && install.type != cw::RuntimeType::Wine))
+    {
+        LauncherDialog::warning(
+            this, QStringLiteral("Wrong Runtime Type"),
+            proton_mode()
+                ? QStringLiteral("Choose a Proton installation for the UMU / Proton setup.")
+                : QStringLiteral("Choose a Wine installation for the Wine setup."));
+        return;
+    }
+#endif
     runtimes.append(install);
     populate();
     select_row(runtimes.size() - 1);
@@ -623,17 +711,30 @@ void WineSelectMenu::confirm()
 {
     if (selected < 0 || selected >= runtimes.size() || !runtimes[selected].usable) return;
     const cw::WineInstall& wi = runtimes[selected];
-    Config::instance().set_wine_binary(wi.path);
-    Config::instance().set_runtime_selected(true);
+    auto& config = Config::instance();
+    const bool had_proton_runtime = config.runtime_is_proton();
+
+    config.begin_update();
+    config.set_wine_binary(wi.path);
 #if defined(Q_OS_MACOS)
-    Config::instance().set_setup_runtime_preference(QStringLiteral("wine"));
-    Config::instance().set_use_dxvk(false);
-    Config::instance().set_wine_arch(QStringLiteral("win64"));
+    config.set_setup_runtime_preference(QStringLiteral("wine"));
+    config.set_use_dxvk(false);
+    config.set_wine_arch(QStringLiteral("win64"));
 #else
-    Config::instance().set_setup_runtime_preference(
-        wi.type == cw::RuntimeType::Proton
-            ? QStringLiteral("proton") : QStringLiteral("wine"));
+    if (wi.type == cw::RuntimeType::Proton)
+    {
+        config.set_setup_runtime_preference(QStringLiteral("proton"));
+        if (cw::is_managed_proton(wi.path) || !had_proton_runtime)
+            config.set_wine_prefix(soa::common::paths::default_proton_compat_data_root());
+    }
+    else
+    {
+        config.set_setup_runtime_preference(QStringLiteral("wine"));
+    }
 #endif
+    config.set_runtime_selected(true);
+    config.end_update();
+
     SPDLOG_INFO("runtime selected: {} ({})", wi.name.toStdString(), wi.path.toStdString());
     emit runtime_chosen();
 }
@@ -649,8 +750,14 @@ void WineSelectMenu::paint_content(QPainter& painter)
     title_font.setWeight(QFont::Black);
     painter.setFont(title_font);
     painter.setPen(soa::ui::colors::k_text_maroon);
+#if defined(Q_OS_MACOS)
+    const QString title = QStringLiteral("SELECT RUNTIME");
+#else
+    const QString title = proton_mode() ? QStringLiteral("SELECT PROTON")
+                                        : QStringLiteral("SELECT WINE");
+#endif
     painter.drawText(runtime_local_rect(w, {30, 34, 640, 38}), Qt::AlignCenter,
-                     soa::i18n::translate("SELECT RUNTIME"));
+                     soa::i18n::translate(title));
 
     QFont body_font = soa::ui::assets::fonts[soa::ui::assets::Font::Inter];
     body_font.setPixelSize(soa::ui::layout::scaled(14, w));
@@ -660,7 +767,9 @@ void WineSelectMenu::paint_content(QPainter& painter)
 #if defined(Q_OS_MACOS)
     const QString text = QStringLiteral("Choose the Wine installation used to run the game.");
 #else
-    const QString text = QStringLiteral("Choose the Wine or Proton version used to run the game.");
+    const QString text = proton_mode()
+        ? QStringLiteral("Let the launcher manage UMU-Proton, or choose a Proton installation already on this computer.")
+        : QStringLiteral("Choose the Wine installation used to run the game.");
 #endif
     painter.drawText(runtime_local_rect(w, {68, 88, 564, 46}),
                      Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
@@ -669,7 +778,7 @@ void WineSelectMenu::paint_content(QPainter& painter)
 
 void WineSelectMenu::showEvent(QShowEvent* event)
 {
-    if (!scanning && runtimes.isEmpty())
+    if (!scanning)
         start_scan();
     ModalOverlay::showEvent(event);
 }

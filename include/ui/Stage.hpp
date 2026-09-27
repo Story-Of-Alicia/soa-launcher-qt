@@ -4,6 +4,7 @@ namespace soa::ui
 {
     enum class Stage
     {
+        NeedsLanguage,
         Probing,
         NeedsPrerequisites,
         NeedsRuntime,
@@ -28,6 +29,7 @@ namespace soa::ui
     {
         switch (stage)
         {
+            case Stage::NeedsLanguage:   return "NeedsLanguage";
             case Stage::Probing:         return "Probing";
             case Stage::NeedsPrerequisites: return "NeedsPrerequisites";
             case Stage::NeedsRuntime:    return "NeedsRuntime";

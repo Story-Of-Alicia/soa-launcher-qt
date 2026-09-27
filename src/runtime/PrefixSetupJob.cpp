@@ -363,6 +363,19 @@ namespace soa::runtime
         if (!active_)
             return;
 
+#if !defined(Q_OS_MACOS)
+        if (completed_kind == Kind::Setup && runtime_.runtime_is_proton()
+            && is_managed_proton(Config::instance().wine_binary()))
+        {
+            const QString resolved = resolve_managed_proton_root();
+            if (!resolved.isEmpty() && resolved != Config::instance().wine_binary())
+            {
+                SPDLOG_INFO("managed Proton installed at {}", resolved.toStdString());
+                Config::instance().set_wine_binary(resolved);
+            }
+        }
+#endif
+
         const QString runtime_identity = runtime_.runtime_is_proton()
                                              ? Config::instance().wine_binary()
                                              : runtime_.wine_binary();
@@ -671,6 +684,22 @@ namespace soa::runtime
     {
         if (!ensure_idle())
             return;
+#if !defined(Q_OS_MACOS)
+        if (is_managed_proton(Config::instance().wine_binary())
+            && !umu_supports_managed_folders())
+        {
+            if (callbacks_.fail_user)
+            {
+                callbacks_.fail_user(
+                    QStringLiteral("Proton Not Available"),
+                    QStringLiteral(
+                        "Automatic Proton setup requires UMU Launcher 1.4.0 or newer."));
+            }
+            if (callbacks_.setup_finished)
+                callbacks_.setup_finished(false);
+            return;
+        }
+#endif
         if (!runtime_.is_wine_installed())
         {
             if (callbacks_.fail_user)
@@ -714,23 +743,17 @@ namespace soa::runtime
 
         QProcessEnvironment environment = runtime_.umu_environment();
 
-
-
-
-
-        repair_doubled_proton_prefix(Config::instance().proton_compat_data_root());
-
         QVector<SetupCommand> commands;
+        const bool managed_proton = is_managed_proton(Config::instance().wine_binary());
+        const QString setup_message = managed_proton
+            ? QStringLiteral("Installing Proton and creating prefix...")
+            : QStringLiteral("Creating Proton prefix...");
         commands.push_back(
-            {QStringLiteral("Creating Proton prefix..."),
+            {setup_message,
              umu,
-
-
-
-
              {QStringLiteral("createprefix")},
              environment,
-             5 * 60 * 1000,
+             managed_proton ? 30 * 60 * 1000 : 5 * 60 * 1000,
              true,
              true,
              false,

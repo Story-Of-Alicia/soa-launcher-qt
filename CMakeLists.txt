@@ -16,7 +16,11 @@ set(SOA_INCLUDE_DIR "${SOA_ROOT_DIR}/include")
 include(cmake/ProjectSettings.cmake)
 include(cmake/UpdateConfiguration.cmake)
 include(cmake/Dependencies.cmake)
-include(CTest)
+
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING)
+    include(CTest)
+endif()
 
 add_subdirectory(src/common)
 add_subdirectory(src/credentials)

@@ -10,6 +10,7 @@ add_library(soa_ui STATIC
         LauncherInfoDialog.cpp
         LauncherLog.cpp
         LauncherSettings.cpp
+        LanguageSelection.cpp
         LauncherUpdate.cpp
         Layout.cpp
         ModalOverlay.cpp
@@ -38,6 +39,7 @@ add_library(soa_ui STATIC
         ${SOA_INCLUDE_DIR}/ui/LauncherInfoDialog.hpp
         ${SOA_INCLUDE_DIR}/ui/LauncherLog.hpp
         ${SOA_INCLUDE_DIR}/ui/LauncherSettings.hpp
+        ${SOA_INCLUDE_DIR}/ui/LanguageSelection.hpp
         ${SOA_INCLUDE_DIR}/ui/LauncherUpdate.hpp
         ${SOA_INCLUDE_DIR}/ui/Layout.hpp
         ${SOA_INCLUDE_DIR}/ui/ModalOverlay.hpp

@@ -112,7 +112,9 @@ void WineInstall::setup_buttons()
 
     connect(change_path_button, &QPushButton::clicked, this, [this]
     {
-        const QString title = QStringLiteral("Select Wine Prefix Location");
+        const QString title = Config::instance().runtime_is_proton()
+            ? QStringLiteral("Select Proton Compatibility Data Location")
+            : QStringLiteral("Select Wine Prefix Location");
         const QString dir = QFileDialog::getExistingDirectory(
             this, soa::i18n::translate(title));
         if (!dir.isEmpty())
@@ -155,6 +157,15 @@ void WineInstall::start_install()
         update();
         return;
     }
+    if (type == soa::runtime::RuntimeType::Proton
+        && soa::runtime::is_managed_proton(wine_path)
+        && !soa::runtime::umu_supports_managed_folders())
+    {
+        warn_message = "Automatic Proton setup requires UMU Launcher 1.4.0 or newer.";
+        SPDLOG_ERROR("install blocked: managed Proton requires UMU 1.4.0 or newer");
+        update();
+        return;
+    }
 #endif
     warn_message.clear();
 
@@ -166,7 +177,7 @@ void WineInstall::start_install()
     }
     prefix_progress->show_over(this);
 
-    SPDLOG_INFO("install: setting up wine prefix");
+    SPDLOG_INFO("install: setting up runtime prefix");
 
     auto* conn = new QMetaObject::Connection;
     *conn = connect(shell, &soa::runtime::Shell::wine_setup_finished, this,
@@ -176,9 +187,9 @@ void WineInstall::start_install()
             delete conn;
 
             if (ok)
-                SPDLOG_INFO("install: wine prefix ready");
+                SPDLOG_INFO("install: runtime prefix ready");
             else
-                SPDLOG_ERROR("install: wine setup failed");
+                SPDLOG_ERROR("install: runtime setup failed");
 
             set_installing(false);
         });
@@ -198,7 +209,9 @@ void WineInstall::paint_content(QPainter& painter)
     title_font.setWeight(QFont::Black);
     painter.setFont(title_font);
     painter.setPen(soa::ui::colors::k_text_maroon);
-    const QString title = QStringLiteral("WINE PREFIX INSTALLATION");
+    const bool proton = Config::instance().runtime_is_proton();
+    const QString title = proton ? QStringLiteral("PROTON PREFIX SETUP")
+                                 : QStringLiteral("WINE PREFIX INSTALLATION");
     painter.drawText(soa::ui::layout::install_modal::title(w), Qt::AlignCenter,
                      soa::i18n::translate(title));
 
@@ -207,8 +220,13 @@ void WineInstall::paint_content(QPainter& painter)
     body_font.setWeight(QFont::Medium);
     painter.setFont(body_font);
     painter.setPen(soa::ui::colors::k_text_body);
-    const QString description = QStringLiteral(
-        "The Wine prefix will be installed in the selected directory. You can keep the default path or choose a custom one.");
+    const bool managed_proton = proton
+        && soa::runtime::is_managed_proton(Config::instance().wine_binary());
+    const QString description = proton
+        ? (managed_proton
+            ? QStringLiteral("UMU will install and manage Proton, then create Alicia's prefix in the selected compatibility-data directory.")
+            : QStringLiteral("The selected Proton installation will create Alicia's prefix in the selected compatibility-data directory."))
+        : QStringLiteral("The Wine prefix will be installed in the selected directory. You can keep the default path or choose a custom one.");
     painter.drawText(
         soa::ui::layout::install_modal::body(w),
         Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap,

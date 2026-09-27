@@ -1,5 +1,6 @@
 #include "runtime/PrefixInspector.hpp"
 #include "runtime/MacWineRuntime.hpp"
+#include "runtime/WineRegistry.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -17,8 +18,17 @@ namespace soa::runtime
             return QDir(prefix).filePath(QStringLiteral(".soa-prefix-ready"));
         }
 
+        QString runtime_marker_identity(const QString& runtime)
+        {
+            return is_managed_proton(runtime)
+                ? QStringLiteral("managed://umu-proton")
+                : runtime;
+        }
+
         QString runtime_fingerprint(const QString& runtime)
         {
+            if (is_managed_proton(runtime))
+                return QStringLiteral("managed|umu-proton");
             QFileInfo target(runtime);
             if (target.isDir())
             {
@@ -176,8 +186,22 @@ namespace soa::runtime
         const QString version = QString::fromUtf8(marker.readLine()).trimmed();
         const QString recordedRuntime = QString::fromUtf8(marker.readLine()).trimmed();
         const QString recordedFingerprint = QString::fromUtf8(marker.readLine()).trimmed();
-        return version == QStringLiteral("5")
-            && recordedRuntime == runtime
+        if (version != QStringLiteral("5"))
+            return false;
+
+        if (is_managed_proton(runtime))
+        {
+            const bool managed_runtime =
+                recordedRuntime == QStringLiteral("managed://umu-proton")
+                || is_managed_proton(recordedRuntime);
+            const bool managed_fingerprint =
+                recordedFingerprint == QStringLiteral("managed|umu-proton")
+                || (is_managed_proton(recordedRuntime)
+                    && recordedFingerprint == QStringLiteral("managed|%1").arg(recordedRuntime));
+            return managed_runtime && managed_fingerprint;
+        }
+
+        return recordedRuntime == runtime
             && recordedFingerprint == runtime_fingerprint(runtime);
     }
 
@@ -189,7 +213,7 @@ namespace soa::runtime
         if (!marker.open(QIODevice::WriteOnly | QIODevice::Text))
             return false;
         marker.write("5\n");
-        marker.write(runtime.toUtf8());
+        marker.write(runtime_marker_identity(runtime).toUtf8());
         marker.write("\n");
         marker.write(runtime_fingerprint(runtime).toUtf8());
         marker.write("\n");

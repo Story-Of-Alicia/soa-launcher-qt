@@ -32,6 +32,8 @@ private:
     void select_row(int index);
     void confirm();
     void retranslate_dynamic_text();
+    [[nodiscard]] bool proton_mode() const;
+    void filter_runtime_family();
 
     QVector<soa::runtime::WineInstall> runtimes;
     QFutureWatcher<QVector<soa::runtime::WineInstall>>* detector {};

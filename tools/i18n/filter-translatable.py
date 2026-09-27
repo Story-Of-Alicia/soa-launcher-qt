@@ -146,6 +146,10 @@ def classify(source: str) -> str | None:
 
     if "style=" in text or re.search(r"<(h[1-6]|div|table|tr|td|p)\b", text, re.I):
         return "markup with styling - split it out of the source"
+    if TAG.search(text):
+        visible = html.unescape(TAG.sub("", text))
+        if not WORD.search(PLACEHOLDER.sub("", visible)):
+            return "markup template"
 
     pairs = re.findall(r"\b\w+=(?:%\d+|[\w./\-]*)", text)
     if len(pairs) >= 2 and len(WORD.findall(re.sub(r"\b\w+=\S*", "", text))) == 0:
@@ -199,6 +203,67 @@ def literal_translation_sources(source_root: Path) -> dict[str, list[tuple[Path,
                 parts.append(value)
             line = text.count("\n", 0, match.start()) + 1
             found["".join(parts)].append((path, line))
+    return found
+
+
+LABEL_BLOCK_PATTERN = re.compile(
+    rf'\bmake_label_block\s*\([^;]*?,\s*'
+    rf'((?:{CPP_STRING_PATTERN}\s*)+),\s*'
+    rf'((?:{CPP_STRING_PATTERN}\s*)+)\s*\);',
+    re.S,
+)
+
+
+UI_WIDGET_LITERAL_PATTERNS = (
+    re.compile(
+        rf'\bnew\s+(?:QLabel|QPushButton|QCheckBox|QRadioButton|QGroupBox)\s*\(\s*'
+        rf'(?:QStringLiteral\s*\(\s*)?((?:{CPP_STRING_PATTERN}\s*)+)',
+        re.S,
+    ),
+    re.compile(
+        rf'->set(?:Text|ToolTip|StatusTip|AccessibleName|AccessibleDescription|'
+        rf'PlaceholderText|WindowTitle)\s*\(\s*(?:QStringLiteral\s*\(\s*)?'
+        rf'((?:{CPP_STRING_PATTERN}\s*)+)',
+        re.S,
+    ),
+    re.compile(
+        rf'\bset_button_text\s*\([^,]+,\s*(?:QStringLiteral\s*\(\s*)?'
+        rf'((?:{CPP_STRING_PATTERN}\s*)+)',
+        re.S,
+    ),
+)
+
+
+def ui_widget_translation_sources(source_root: Path) -> dict[str, list[tuple[Path, int]]]:
+    found: dict[str, list[tuple[Path, int]]] = defaultdict(list)
+    ui_root = source_root / "ui"
+    if not ui_root.exists():
+        return found
+    for path in sorted(ui_root.rglob("*.cpp")):
+        text = path.read_text(encoding="utf-8")
+        for match in LABEL_BLOCK_PATTERN.finditer(text):
+            for group in (1, 2):
+                parts: list[str] = []
+                for token_match in CPP_STRING.finditer(match.group(group)):
+                    token = re.sub(r"^(?:u8|u|U|L)", "", token_match.group(0))
+                    value = ast.literal_eval(token)
+                    if isinstance(value, str):
+                        parts.append(value)
+                if parts:
+                    line = text.count("\n", 0, match.start(group)) + 1
+                    found["".join(parts)].append((path, line))
+        for pattern in UI_WIDGET_LITERAL_PATTERNS:
+            for match in pattern.finditer(text):
+                parts: list[str] = []
+                for token_match in CPP_STRING.finditer(match.group(1)):
+                    token = re.sub(r"^(?:u8|u|U|L)", "", token_match.group(0))
+                    value = ast.literal_eval(token)
+                    if isinstance(value, str):
+                        parts.append(value)
+                if not parts:
+                    continue
+                line = text.count("\n", 0, match.start()) + 1
+                found["".join(parts)].append((path, line))
     return found
 
 
@@ -289,8 +354,9 @@ def main() -> int:
             *(reference_contexts[name] for name in TRANSLATION_CONTEXTS)
         )
         locations = literal_translation_sources(args.source_root)
-        for source, refs in runtime_translation_sources(args.source_root).items():
-            locations[source].extend(refs)
+        for collector in (runtime_translation_sources, ui_widget_translation_sources):
+            for source, refs in collector(args.source_root).items():
+                locations[source].extend(refs)
         locations = {
             source: refs
             for source, refs in locations.items()

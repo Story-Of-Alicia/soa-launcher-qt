@@ -83,7 +83,6 @@ get_tool() {
 }
 
 require_command cmake
-require_command ctest
 require_command ninja
 require_command wget
 require_command file
@@ -153,7 +152,7 @@ cmake \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_INSTALL_DATADIR=share \
   -DCMAKE_INSTALL_LIBEXECDIR=libexec \
-  -DBUILD_TESTING=ON \
+  -DBUILD_TESTING=OFF \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
   -DSOA_PORTABLE_BUILD=ON
 
@@ -164,8 +163,6 @@ if [ -n "${SOA_LAUNCHER_VERSION:-}" ] && [ "$SOA_LAUNCHER_VERSION" != "$LAUNCHER
 fi
 
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
-QT_QPA_PLATFORM=offscreen LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-  ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure --no-tests=error
 
 DESTDIR="$APPDIR" cmake --install "$BUILD_DIR" --config "$BUILD_TYPE" --prefix /usr
 

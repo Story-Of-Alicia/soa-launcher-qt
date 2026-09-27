@@ -1,4 +1,5 @@
 #include "ConfigPrivate.hpp"
+#include "common/AppPaths.hpp"
 
 namespace soa::config
 {
@@ -67,7 +68,7 @@ namespace soa::config
 #if defined(Q_OS_MACOS)
             configured = soa::runtime::macos::default_prefix_root();
 #else
-            configured = QDir(QDir::homePath()).filePath(QStringLiteral("soa-launcher"));
+            configured = soa::common::paths::default_prefix_root();
 #endif
         }
         return absolute_clean_path(configured);
@@ -75,7 +76,16 @@ namespace soa::config
 
     QString Config::normalize_proton_compat_root(const QString& path) const
     {
-        QString configured = normalize_wine_prefix(path);
+        QString configured = path.trimmed();
+        if (configured.isEmpty())
+        {
+#if defined(Q_OS_MACOS)
+            configured = soa::runtime::macos::default_prefix_root();
+#else
+            configured = soa::common::paths::default_proton_compat_data_root();
+#endif
+        }
+        configured = absolute_clean_path(configured);
         if (QFileInfo(configured).fileName().compare(QStringLiteral("pfx"), Qt::CaseInsensitive) == 0)
         {
             const QString parent = QFileInfo(configured).dir().absolutePath();
@@ -118,7 +128,22 @@ namespace soa::config
 
     void Config::set_wine_binary(const QString& value)
     {
-        if (wine_binary() == value)
+#if defined(Q_OS_MACOS)
+        const QString normalized = value;
+#else
+        QString normalized = value.trimmed();
+        if (normalized.compare(QStringLiteral("managed://umu-proton"), Qt::CaseInsensitive) == 0)
+            normalized = soa::runtime::managed_proton_identifier();
+        if (!normalized.isEmpty() && !QFileInfo(normalized).isAbsolute())
+        {
+            const QString found = QStandardPaths::findExecutable(normalized);
+            if (!found.isEmpty())
+                normalized = found;
+        }
+        if (QFileInfo(normalized).isAbsolute())
+            normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
+#endif
+        if (wine_binary() == normalized)
             return;
 
         const bool oldProton = runtime_is_proton();
@@ -130,7 +155,7 @@ namespace soa::config
         const QString oldAlicia2Default = derive_game_path(
             oldPrefix, soa::common::game::GameVersion::Alicia2);
 
-        d->values[QStringLiteral("wine_binary")] = value;
+        d->values[QStringLiteral("wine_binary")] = normalized;
         rebase_game_install_paths(oldPrefix, oldPlaytestPath, oldAlicia2Path);
 
         if (oldProton != runtime_is_proton())
@@ -154,13 +179,38 @@ namespace soa::config
 
     void Config::set_winetricks_binary(const QString& value)
     {
-        if (winetricks_binary() == value) return;
-        d->values[QStringLiteral("winetricks_binary")] = value; persist_change();
+#if defined(Q_OS_MACOS)
+        const QString normalized = value;
+#else
+        QString normalized = value.trimmed();
+        if (!normalized.isEmpty() && !QFileInfo(normalized).isAbsolute())
+        {
+            const QString found = QStandardPaths::findExecutable(normalized);
+            if (!found.isEmpty())
+                normalized = found;
+        }
+        if (QFileInfo(normalized).isAbsolute())
+            normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
+#endif
+        if (winetricks_binary() == normalized) return;
+        d->values[QStringLiteral("winetricks_binary")] = normalized; persist_change();
     }
 
     void Config::set_umu_binary(const QString& value)
     {
+#if defined(Q_OS_MACOS)
         const QString normalized = value.trimmed();
+#else
+        QString normalized = value.trimmed();
+        if (!normalized.isEmpty() && !QFileInfo(normalized).isAbsolute())
+        {
+            const QString found = QStandardPaths::findExecutable(normalized);
+            if (!found.isEmpty())
+                normalized = found;
+        }
+        if (QFileInfo(normalized).isAbsolute())
+            normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
+#endif
         if (umu_binary() == normalized) return;
         d->values[QStringLiteral("umu_binary")] = normalized; persist_change();
     }

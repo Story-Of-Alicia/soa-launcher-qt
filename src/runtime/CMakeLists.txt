@@ -2,6 +2,7 @@ add_library(soa_runtime_support STATIC
         MacWineRuntime.cpp
         WineProcess.cpp
         WineRegistry.cpp
+        RuntimeTools.cpp
         ${SOA_INCLUDE_DIR}/runtime/MacWineRuntime.hpp
         ${SOA_INCLUDE_DIR}/runtime/WineProcess.hpp
         ${SOA_INCLUDE_DIR}/runtime/WineRegistry.hpp
@@ -11,9 +12,12 @@ target_include_directories(soa_runtime_support PUBLIC
         ${SOA_INCLUDE_DIR}
 )
 
-target_link_libraries(soa_runtime_support PUBLIC
+target_link_libraries(soa_runtime_support
+        PUBLIC
         soa_common
         Qt6::Core
+        PRIVATE
+        soa_config
 )
 
 soa_apply_build_options(soa_runtime_support)
@@ -29,7 +33,6 @@ add_library(soa_runtime STATIC
         ProcessRunner.cpp
         RuntimeEnvironment.cpp
         RuntimeLocator.cpp
-        RuntimeTools.cpp
         Shell.cpp
         SystemProfile.cpp
 

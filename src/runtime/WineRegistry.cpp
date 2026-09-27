@@ -9,15 +9,184 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSysInfo>
+#include <QStringList>
+#include <QStringView>
 
+#include <functional>
 #include <string>
 
+#include "common/AppPaths.hpp"
 #include "common/Log.hpp"
 #include "runtime/MacWineRuntime.hpp"
 #include <spdlog/spdlog.h>
 
 namespace soa::runtime
 {
+    QString managed_umu_data_home()
+    {
+#if defined(Q_OS_MACOS)
+        return {};
+#else
+        return QDir(soa::common::paths::application_support_root())
+            .filePath(QStringLiteral("runtimes"));
+#endif
+    }
+
+    QString managed_proton_identifier()
+    {
+#if defined(Q_OS_MACOS)
+        return {};
+#else
+        return QDir(managed_umu_data_home())
+            .filePath(QStringLiteral("umu/compatibilitytools/UMU-Latest"));
+#endif
+    }
+
+    bool is_managed_proton(const QString& path)
+    {
+#if defined(Q_OS_MACOS)
+        Q_UNUSED(path);
+        return false;
+#else
+        const QString trimmed = path.trimmed();
+        if (trimmed.isEmpty())
+            return false;
+        if (trimmed.compare(QStringLiteral("managed://umu-proton"), Qt::CaseInsensitive) == 0)
+            return true;
+
+        const QString candidate = QDir::cleanPath(QFileInfo(trimmed).absoluteFilePath());
+        const QString data_home = QDir::cleanPath(
+            QFileInfo(managed_umu_data_home()).absoluteFilePath());
+        const QString identifier = QDir::cleanPath(
+            QFileInfo(managed_proton_identifier()).absoluteFilePath());
+        if (candidate == identifier)
+            return true;
+
+        const QString name = QFileInfo(candidate).fileName();
+        const bool managed_name =
+            name.startsWith(QStringLiteral("UMU-Proton"), Qt::CaseInsensitive)
+            || name.compare(QStringLiteral("UMU-Latest"), Qt::CaseInsensitive) == 0;
+        if (!managed_name)
+            return false;
+
+        const QString steam_tools = QDir::cleanPath(QDir(data_home).filePath(
+            QStringLiteral("Steam/compatibilitytools.d")));
+        const QString umu_tools = QDir::cleanPath(QDir(data_home).filePath(
+            QStringLiteral("umu/compatibilitytools")));
+        return candidate.startsWith(steam_tools + QDir::separator())
+            || candidate.startsWith(umu_tools + QDir::separator());
+#endif
+    }
+
+    QString resolve_managed_proton_root()
+    {
+#if defined(Q_OS_MACOS)
+        return {};
+#else
+        const QString data_home = managed_umu_data_home();
+        const QString steam_tools = QDir(data_home).filePath(
+            QStringLiteral("Steam/compatibilitytools.d"));
+        const QString umu_tools = QDir(data_home).filePath(
+            QStringLiteral("umu/compatibilitytools"));
+
+        const auto natural_less = [](const QString& left, const QString& right)
+        {
+            qsizetype i = 0;
+            qsizetype j = 0;
+            while (i < left.size() && j < right.size())
+            {
+                if (left[i].isDigit() && right[j].isDigit())
+                {
+                    const qsizetype left_start = i;
+                    const qsizetype right_start = j;
+                    while (i < left.size() && left[i].isDigit())
+                        ++i;
+                    while (j < right.size() && right[j].isDigit())
+                        ++j;
+
+                    qsizetype left_significant = left_start;
+                    qsizetype right_significant = right_start;
+                    while (left_significant < i - 1 && left[left_significant] == QLatin1Char('0'))
+                        ++left_significant;
+                    while (right_significant < j - 1
+                           && right[right_significant] == QLatin1Char('0'))
+                    {
+                        ++right_significant;
+                    }
+
+                    const qsizetype left_digits = i - left_significant;
+                    const qsizetype right_digits = j - right_significant;
+                    if (left_digits != right_digits)
+                        return left_digits < right_digits;
+
+                    const int numeric_compare = QStringView(left).mid(left_significant, left_digits)
+                                                    .compare(QStringView(right).mid(
+                                                        right_significant, right_digits));
+                    if (numeric_compare != 0)
+                        return numeric_compare < 0;
+                    continue;
+                }
+
+                const QChar left_char = left[i].toLower();
+                const QChar right_char = right[j].toLower();
+                if (left_char != right_char)
+                    return left_char.unicode() < right_char.unicode();
+                ++i;
+                ++j;
+            }
+            return left.size() < right.size();
+        };
+
+        QFileInfo best;
+        const auto consider_usable = [&natural_less, &best](
+                                         const QString& root,
+                                         const std::function<bool(const QString&)>& accepts)
+        {
+            QDir directory(root);
+            if (!directory.exists())
+                return;
+
+            for (const QFileInfo& entry : directory.entryInfoList(
+                     QDir::Dirs | QDir::NoDotAndDotDot, QDir::NoSort))
+            {
+                if (!accepts(entry.fileName()))
+                    continue;
+
+                const QFileInfo proton(QDir(entry.absoluteFilePath()).filePath(
+                    QStringLiteral("proton")));
+                if (!proton.isFile() || !proton.isExecutable())
+                    continue;
+                if (WineRegistry::resolve_wine_executable(entry.absoluteFilePath()).isEmpty())
+                    continue;
+
+                if (!best.exists() || natural_less(best.fileName(), entry.fileName()))
+                    best = entry;
+            }
+        };
+
+        const auto is_versioned_umu_proton = [](const QString& name)
+        {
+            return name.startsWith(QStringLiteral("UMU-Proton"), Qt::CaseInsensitive);
+        };
+        consider_usable(steam_tools, is_versioned_umu_proton);
+        consider_usable(umu_tools, is_versioned_umu_proton);
+        if (!best.exists())
+        {
+            consider_usable(
+                umu_tools,
+                [](const QString& name)
+                {
+                    return name.compare(QStringLiteral("UMU-Latest"),
+                                        Qt::CaseInsensitive) == 0;
+                });
+        }
+
+        if (!best.exists())
+            return {};
+        const QString canonical = best.canonicalFilePath();
+        return canonical.isEmpty() ? best.absoluteFilePath() : canonical;
+#endif
+    }
     QVector<QString>& WineRegistry::extra_search_dirs()
     {
         static QVector<QString> dirs;
@@ -26,8 +195,15 @@ namespace soa::runtime
 
     RuntimeType WineRegistry::identify(const QString& path, bool* ok)
     {
-        const QFileInfo info(path);
         if (ok) *ok = false;
+#if !defined(Q_OS_MACOS)
+        if (is_managed_proton(path))
+        {
+            if (ok) *ok = umu_available();
+            return RuntimeType::Proton;
+        }
+#endif
+        const QFileInfo info(path);
 
         if (info.isFile())
         {
@@ -49,7 +225,9 @@ namespace soa::runtime
 #if defined(Q_OS_MACOS)
                 if (ok) *ok = false;
 #else
-                if (ok) *ok = proton.isExecutable();
+                if (ok)
+                    *ok = proton.isExecutable()
+                        && !resolve_wine_executable(info.absoluteFilePath()).isEmpty();
 #endif
                 return RuntimeType::Proton;
             }
@@ -98,6 +276,8 @@ namespace soa::runtime
         Q_UNUSED(path);
         return false;
 #else
+        if (is_managed_proton(path))
+            return true;
         if (path.trimmed().isEmpty())
             return false;
         QFileInfo supplied(path);
@@ -146,8 +326,23 @@ namespace soa::runtime
                 install.issue = message;
                 return false;
             }
-            install.path = QFileInfo(path).absoluteFilePath();
             install.type = RuntimeType::Proton;
+            if (is_managed_proton(path))
+            {
+                install.path = managed_proton_identifier();
+                install.name = QStringLiteral("Install Proton automatically");
+                install.version = QStringLiteral("Latest stable UMU-Proton");
+                install.architectures = QSysInfo::currentCpuArchitecture();
+                install.usable = umu_supports_managed_folders();
+                if (!install.usable)
+                {
+                    install.issue = QStringLiteral(
+                        "Automatic Proton setup requires UMU Launcher 1.4.0 or newer.");
+                    if (error) *error = install.issue;
+                }
+                return install.usable;
+            }
+            install.path = QFileInfo(path).absoluteFilePath();
             install.name = QFileInfo(path).completeBaseName();
             install.usable = true;
             return true;

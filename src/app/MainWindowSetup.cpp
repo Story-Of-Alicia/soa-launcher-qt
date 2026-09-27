@@ -15,6 +15,7 @@
 #include "ui/InstallState.hpp"
 #include "ui/LauncherDialog.hpp"
 #include "ui/LauncherUpdate.hpp"
+#include "ui/LanguageSelection.hpp"
 #include "ui/Layout.hpp"
 #include "ui/PrerequisitesIntro.hpp"
 #include "ui/RepairFiles.hpp"
@@ -87,6 +88,23 @@ void MainWindow::setup_version_label()
     version_label->setGeometry(soa::ui::layout::chrome::version(window_size));
     version_label->raise();
     retranslate_dynamic_text();
+}
+
+void MainWindow::setup_language_selection()
+{
+    language_selection = new LanguageSelection(this);
+    language_selection->hide();
+
+    connect(language_selection, &LanguageSelection::accepted, this, [this]()
+    {
+        Config::instance().set_language_selected(true);
+        close_overlay(language_selection);
+        shell->detect_existing_game();
+        if (integrity_watcher)
+            integrity_watcher->refresh();
+        refresh_tray_actions();
+        raise_persistent_controls();
+    });
 }
 
 void MainWindow::setup_settings()
@@ -259,7 +277,6 @@ void MainWindow::setup_integrity_watcher()
         open_overlay(repair_files);
         show_launcher();
     });
-    integrity_watcher->refresh();
 }
 
 void MainWindow::setup_alicia_chooser()

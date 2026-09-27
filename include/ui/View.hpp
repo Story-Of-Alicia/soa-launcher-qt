@@ -4,6 +4,7 @@ namespace soa::ui
 {
     enum class View
     {
+        LanguageSelection,
         Loading,
         Prerequisites,
         WineSelect,
@@ -18,6 +19,7 @@ namespace soa::ui
     {
         switch (v)
         {
+            case View::LanguageSelection: return "LanguageSelection";
             case View::Loading:       return "Loading";
             case View::Prerequisites: return "Prerequisites";
             case View::WineSelect:  return "WineSelect";

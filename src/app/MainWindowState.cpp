@@ -21,6 +21,8 @@
 #include <QIcon>
 #include <QPushButton>
 
+#include "ui/LanguageSelection.hpp"
+
 using soa::common::game::GameVersion;
 using soa::ui::Stage;
 using soa::ui::View;
@@ -96,6 +98,7 @@ void MainWindow::set_game_switching_enabled(const Stage stage)
 {
     const bool enabled =
         !repair_active &&
+        stage != Stage::NeedsLanguage &&
         stage != Stage::SettingUpPrefix &&
         stage != Stage::Downloading &&
         stage != Stage::Updating &&
@@ -112,7 +115,8 @@ void MainWindow::open_for_current_stage()
 {
     const View view = soa::ui::view_for(install_state->stage());
 
-    if (view == View::Prerequisites) open_overlay(prerequisites_intro);
+    if (view == View::LanguageSelection) open_overlay(language_selection);
+    else if (view == View::Prerequisites) open_overlay(prerequisites_intro);
     else if (view == View::WineSelect) open_overlay(wine_select);
     else if (view == View::WineInstall)
     {
@@ -169,6 +173,7 @@ void MainWindow::on_stage_changed(const Stage stage)
     }
 
     const bool settingsEditable = !repair_active
+        && stage != Stage::NeedsLanguage
         && stage != Stage::SettingUpPrefix
         && stage != Stage::Downloading
         && stage != Stage::Updating
@@ -199,7 +204,17 @@ void MainWindow::on_stage_changed(const Stage stage)
 
     switch (view)
     {
+        case View::LanguageSelection:
+            close_overlay(prerequisites_intro);
+            close_overlay(wine_select);
+            close_overlay(wine_install);
+            close_overlay(game_install);
+            close_overlay(rules_agreement);
+            open_overlay(language_selection);
+            break;
+
         case View::Prerequisites:
+            close_overlay(language_selection);
             close_overlay(wine_select);
             close_overlay(wine_install);
             close_overlay(game_install);
@@ -208,6 +223,7 @@ void MainWindow::on_stage_changed(const Stage stage)
             break;
 
         case View::WineSelect:
+            close_overlay(language_selection);
             close_overlay(prerequisites_intro);
             close_overlay(wine_install);
             close_overlay(game_install);
@@ -215,6 +231,7 @@ void MainWindow::on_stage_changed(const Stage stage)
             break;
 
         case View::WineInstall:
+            close_overlay(language_selection);
             close_overlay(prerequisites_intro);
             close_overlay(wine_select);
             close_overlay(game_install);
@@ -225,6 +242,7 @@ void MainWindow::on_stage_changed(const Stage stage)
             break;
 
         case View::GameInstall:
+            close_overlay(language_selection);
             close_overlay(prerequisites_intro);
             close_overlay(wine_select);
             close_overlay(wine_install);
@@ -234,6 +252,7 @@ void MainWindow::on_stage_changed(const Stage stage)
             break;
 
         case View::Rules:
+            close_overlay(language_selection);
             close_overlay(prerequisites_intro);
             close_overlay(wine_select);
             close_overlay(wine_install);
@@ -242,6 +261,7 @@ void MainWindow::on_stage_changed(const Stage stage)
             break;
 
         case View::AliciaChooser:
+            close_overlay(language_selection);
             close_overlay(prerequisites_intro);
             close_overlay(rules_agreement);
             close_overlay(wine_select);
@@ -251,6 +271,7 @@ void MainWindow::on_stage_changed(const Stage stage)
 
         case View::Loading:
         case View::Error:
+            close_overlay(language_selection);
             break;
     }
 }

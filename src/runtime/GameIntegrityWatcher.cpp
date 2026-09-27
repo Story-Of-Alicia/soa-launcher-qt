@@ -95,8 +95,10 @@ namespace soa::runtime
                     continue;
 
                 const QString key = path_key(relative);
+                const bool dxvk_cache = !relative.contains(QLatin1Char('/'))
+                    && relative.endsWith(QStringLiteral(".dxvk-cache"), Qt::CaseInsensitive);
                 if (!expected.contains(key) && !allowed.contains(key)
-                    && !dxvk_allowed.contains(key))
+                    && !dxvk_allowed.contains(key) && !dxvk_cache)
                 {
                     unexpected.append(relative);
                 }

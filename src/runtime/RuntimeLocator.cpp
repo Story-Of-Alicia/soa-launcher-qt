@@ -55,12 +55,27 @@ namespace soa::runtime
 
     QString RuntimeLocator::proton_root() const
     {
+#if !defined(Q_OS_MACOS)
+        if (is_managed_proton(settings().configured_runtime))
+        {
+            const QString resolved = resolve_managed_proton_root();
+            return resolved.isEmpty() ? managed_proton_identifier() : resolved;
+        }
+#endif
         const QFileInfo info(wine_binary());
         return info.isFile() ? info.dir().absolutePath() : info.absoluteFilePath();
     }
 
     QString RuntimeLocator::proton_binary() const
     {
+#if !defined(Q_OS_MACOS)
+        if (is_managed_proton(settings().configured_runtime))
+        {
+            const QString resolved = resolve_managed_proton_root();
+            return resolved.isEmpty() ? QString()
+                                      : QDir(resolved).filePath(QStringLiteral("proton"));
+        }
+#endif
         const QFileInfo info(wine_binary());
         if (info.isFile() &&
             info.fileName().compare(QStringLiteral("proton"), Qt::CaseInsensitive) == 0)
@@ -195,6 +210,16 @@ namespace soa::runtime
 
     bool RuntimeLocator::is_wine_installed() const
     {
+#if !defined(Q_OS_MACOS)
+        if (runtime_is_proton() && is_managed_proton(settings().configured_runtime))
+        {
+            const QString umu = umu_path();
+            const bool valid = umu_supports_managed_folders();
+            SPDLOG_DEBUG("managed Proton via {}: {}", umu.toStdString(),
+                         valid ? "usable" : "requires UMU 1.4.0 or newer");
+            return valid;
+        }
+#endif
         const QString program =
             runtime_is_proton() ? proton_binary() : resolved_executable(wine_binary());
         const QFileInfo info(program);

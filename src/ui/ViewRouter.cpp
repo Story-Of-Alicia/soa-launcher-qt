@@ -6,6 +6,9 @@ namespace soa::ui
     {
         switch (stage)
         {
+            case Stage::NeedsLanguage:
+                return View::LanguageSelection;
+
             case Stage::Probing:
                 return View::Loading;
 

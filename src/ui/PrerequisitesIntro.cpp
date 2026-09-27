@@ -141,7 +141,7 @@ PrerequisitesIntro::PrerequisitesIntro(QWidget* parent)
                 "Looking for a usable Wine setup. Nothing will be installed automatically."));
 #else
             recommendation_body->setText(soa::i18n::translate(
-                "Looking for a usable Wine or Proton setup. Nothing will be installed automatically."));
+                "Checking Wine, Winetricks, and UMU Launcher. Nothing will be installed automatically."));
 #endif
             continue_button->setText(soa::i18n::translate("CHECKING..."));
         }
@@ -185,7 +185,7 @@ void PrerequisitesIntro::setup_controls()
     recommendation_title->setGeometry(local_rect(w, {160, 102, 360, 34}));
     recommendation_title->raise();
 
-    continue_button = new QPushButton(QStringLiteral("CHECKING..."), this);
+    continue_button = new QPushButton(soa::i18n::translate("CHECKING..."), this);
     continue_button->setCursor(Qt::PointingHandCursor);
     continue_button->setStyleSheet(primary_style(w));
     QFont primary_font = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileExtraBlack];
@@ -193,12 +193,12 @@ void PrerequisitesIntro::setup_controls()
     primary_font.setWeight(QFont::Black);
     continue_button->setFont(primary_font);
     continue_button->setGeometry(local_rect(w, {60, 330, 370, 54}));
-    continue_button->setAccessibleName(QStringLiteral("Use recommended setup"));
+    continue_button->setAccessibleName(soa::i18n::translate("Use recommended setup"));
     continue_button->setEnabled(false);
     connect(continue_button, &QPushButton::clicked,
             this, &PrerequisitesIntro::apply_recommendation);
 
-    choose_own_button = new QPushButton(QStringLiteral("CHOOSE MY OWN"), this);
+    choose_own_button = new QPushButton(soa::i18n::translate("CHOOSE WINE"), this);
     choose_own_button->setCursor(Qt::PointingHandCursor);
     choose_own_button->setStyleSheet(secondary_style(w));
     QFont secondary_font = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileExtraBlack];
@@ -206,9 +206,18 @@ void PrerequisitesIntro::setup_controls()
     secondary_font.setWeight(QFont::Black);
     choose_own_button->setFont(secondary_font);
     choose_own_button->setGeometry(local_rect(w, {440, 330, 180, 54}));
-    choose_own_button->setAccessibleName(QStringLiteral("Choose Wine manually"));
-    connect(choose_own_button, &QPushButton::clicked,
-            this, &PrerequisitesIntro::choose_own_requested);
+    choose_own_button->setAccessibleName(soa::i18n::translate("Choose Wine manually"));
+    connect(choose_own_button, &QPushButton::clicked, this, [this]()
+    {
+#if defined(Q_OS_MACOS)
+        emit choose_own_requested();
+#else
+        auto& config = soa::config::Config::instance();
+        config.set_setup_runtime_preference(QStringLiteral("wine"));
+        config.set_runtime_selected(false);
+        emit choose_own_requested();
+#endif
+    });
 }
 
 void PrerequisitesIntro::start_detection()
@@ -222,7 +231,7 @@ void PrerequisitesIntro::start_detection()
         "Looking for a usable Wine setup. Nothing will be installed automatically."));
 #else
     recommendation_body->setText(soa::i18n::translate(
-        "Looking for a usable Wine or Proton setup. Nothing will be installed automatically."));
+        "Checking Wine, Winetricks, and UMU Launcher. Nothing will be installed automatically."));
 #endif
     continue_button->setText(soa::i18n::translate("CHECKING..."));
     continue_button->setEnabled(false);
@@ -318,7 +327,7 @@ bool PrerequisitesIntro::profile_ready(QString* blocker) const
 {
     if (!detection_complete)
     {
-        if (blocker) *blocker = QStringLiteral("The system check is still running.");
+        if (blocker) *blocker = soa::i18n::translate("The system check is still running.");
         return false;
     }
 
@@ -326,7 +335,7 @@ bool PrerequisitesIntro::profile_ready(QString* blocker) const
     if (system_profile.cpu_architecture != soa::runtime::CpuArchitecture::X86_64)
     {
         if (blocker)
-            *blocker = QStringLiteral("The Linux launcher and game currently require an x86_64 computer.");
+            *blocker = soa::i18n::translate("The Linux launcher and game currently require an x86_64 computer.");
         return false;
     }
 #endif
@@ -339,7 +348,7 @@ bool PrerequisitesIntro::profile_ready(QString* blocker) const
         if (runtime && runtime->requires_rosetta)
         {
             if (blocker)
-                *blocker = QStringLiteral(
+                *blocker = soa::i18n::translate(
                     "An Intel Wine installation was found, but Rosetta is unavailable. "
                     "Request Rosetta, complete the macOS prompt, then rescan.");
             return false;
@@ -358,18 +367,18 @@ bool PrerequisitesIntro::profile_ready(QString* blocker) const
         : soa::i18n::translate("Install them");
     if (runtime_type == soa::runtime::RuntimeType::Proton)
     {
-        *blocker = QStringLiteral(
+        *blocker = soa::i18n::translate(
             "Proton needs Proton and UMU. Winetricks is also required for Alicia's Windows components.\n\nMissing: %1. %2, then restart the launcher.")
             .arg(missing_text, install_wording);
     }
     else
     {
 #if defined(Q_OS_MACOS)
-        *blocker = QStringLiteral(
+        *blocker = soa::i18n::translate(
             "Wine and Winetricks are required to prepare Alicia's Windows components.\n\nMissing: %1. %2, then restart the launcher.")
             .arg(missing_text, install_wording);
 #else
-        *blocker = QStringLiteral(
+        *blocker = soa::i18n::translate(
             "Pure Wine needs both Wine and Winetricks.\n\nMissing: %1. %2, then restart the launcher.")
             .arg(missing_text, install_wording);
 #endif
@@ -381,6 +390,7 @@ void PrerequisitesIntro::update_recommendation()
 {
     if (!detection_complete) return;
 
+#if defined(Q_OS_MACOS)
     const auto runtime_type = recommended_runtime();
     const QString runtime_label = runtime_type == soa::runtime::RuntimeType::Proton
         ? QStringLiteral("PROTON")
@@ -391,41 +401,72 @@ void PrerequisitesIntro::update_recommendation()
     {
         recommendation_title->setText(soa::i18n::translate("%1 NEEDED").arg(runtime_label));
         recommendation_body->setStyleSheet(recommendation_style(window()->size(), true));
-        recommendation_body->setText(soa::i18n::translate(blocker));
+        recommendation_body->setText(blocker);
         continue_button->setText(soa::i18n::translate("USE THIS SETUP"));
         continue_button->setEnabled(false);
+        choose_own_button->setText(soa::i18n::translate("CHOOSE MY OWN"));
         choose_own_button->show();
         return;
     }
 
     const auto* runtime = best_runtime(runtime_type);
+    choose_own_button->setText(soa::i18n::translate("CHOOSE MY OWN"));
     choose_own_button->show();
     recommendation_title->setText(soa::i18n::translate("%1 READY").arg(runtime_label));
     recommendation_body->setStyleSheet(recommendation_style(window()->size()));
-#if defined(Q_OS_MACOS)
     recommendation_body->setText(soa::i18n::translate(
         "%1 is the recommended Wine setup for this Mac. Alicia will use "
         "compatibility graphics and a 64-bit Wine prefix. Nothing will be "
         "installed automatically.")
         .arg(runtime ? runtime->name : runtime_label));
-#else
-    recommendation_body->setText(soa::i18n::translate(
-        "%1 is the recommended setup for this computer. Alicia will use "
-        "compatibility graphics by default.\n\nDXVK stays optional and can be "
-        "enabled later in Settings. Nothing will be installed automatically.")
-        .arg(runtime ? runtime->name : runtime_label));
-#endif
     continue_button->setText(soa::i18n::translate("USE THIS SETUP"));
     continue_button->setEnabled(true);
+#else
+    if (system_profile.cpu_architecture != soa::runtime::CpuArchitecture::X86_64)
+    {
+        recommendation_title->setText(soa::i18n::translate("LINUX SETUP NEEDED"));
+        recommendation_body->setStyleSheet(recommendation_style(window()->size(), true));
+        recommendation_body->setText(soa::i18n::translate(
+            "The Linux launcher and game currently require an x86_64 computer."));
+        continue_button->setText(soa::i18n::translate("USE UMU / PROTON"));
+        continue_button->setEnabled(false);
+        choose_own_button->setText(soa::i18n::translate("CHOOSE WINE"));
+        choose_own_button->setEnabled(false);
+        return;
+    }
+
+    const bool wine_ready = best_runtime(soa::runtime::RuntimeType::Wine) != nullptr;
+    QStringList missing_tools;
+    if (!wine_ready) missing_tools << QStringLiteral("Wine");
+    if (!winetricks_ready) missing_tools << QStringLiteral("Winetricks");
+    if (!umu_ready) missing_tools << QStringLiteral("UMU Launcher");
+
+    recommendation_title->setText(soa::i18n::translate("CHOOSE SETUP"));
+    recommendation_body->setStyleSheet(recommendation_style(window()->size()));
+    recommendation_body->setText(
+        missing_tools.isEmpty()
+            ? soa::i18n::translate("Everything is ready. Choose how to run the game.")
+            : soa::i18n::translate("Missing: %1").arg(missing_tools.join(QStringLiteral(", "))));
+
+    continue_button->setText(soa::i18n::translate("USE UMU / PROTON"));
+    continue_button->setAccessibleName(soa::i18n::translate("Use UMU and Proton"));
+    continue_button->setEnabled(umu_ready && winetricks_ready);
+
+    choose_own_button->setText(soa::i18n::translate("CHOOSE WINE"));
+    choose_own_button->setAccessibleName(soa::i18n::translate("Choose Wine"));
+    choose_own_button->setEnabled(winetricks_ready);
+    choose_own_button->show();
+#endif
 }
 
 void PrerequisitesIntro::apply_recommendation()
 {
+#if defined(Q_OS_MACOS)
     QString blocker;
     if (!profile_ready(&blocker))
     {
         recommendation_body->setStyleSheet(recommendation_style(window()->size(), true));
-        recommendation_body->setText(soa::i18n::translate(blocker));
+        recommendation_body->setText(blocker);
         return;
     }
 
@@ -435,17 +476,24 @@ void PrerequisitesIntro::apply_recommendation()
 
     auto& config = soa::config::Config::instance();
     config.begin_update();
-    config.set_setup_runtime_preference(
-        runtime_type == soa::runtime::RuntimeType::Proton
-            ? QStringLiteral("proton") : QStringLiteral("wine"));
-#if defined(Q_OS_MACOS)
+    config.set_setup_runtime_preference(QStringLiteral("wine"));
     config.set_wine_arch(QStringLiteral("win64"));
     config.set_macos_compatibility_profile(QStringLiteral("default"));
-#endif
     config.set_wine_binary(runtime->path);
     config.set_runtime_selected(true);
     config.end_update();
     emit accepted();
+#else
+    if (!umu_ready || !winetricks_ready)
+        return;
+
+    auto& config = soa::config::Config::instance();
+    config.begin_update();
+    config.set_setup_runtime_preference(QStringLiteral("proton"));
+    config.set_runtime_selected(false);
+    config.end_update();
+    emit choose_own_requested();
+#endif
 }
 
 void PrerequisitesIntro::showEvent(QShowEvent* event)
@@ -484,12 +532,8 @@ void PrerequisitesIntro::paint_content(QPainter& painter)
     painter.setFont(note_font);
     painter.setPen(soa::ui::colors::k_text_caption);
 #if defined(Q_OS_MACOS)
-    const QString note = QStringLiteral(
+    const QString note = soa::i18n::translate(
         "You can still choose a different Wine installation manually.");
-#else
-    const QString note = QStringLiteral(
-        "You can still choose a different runtime manually.");
+    painter.drawText(local_rect(w, {80, 292, 520, 24}), Qt::AlignCenter, note);
 #endif
-    painter.drawText(local_rect(w, {80, 292, 520, 24}), Qt::AlignCenter,
-                     soa::i18n::translate(note));
 }

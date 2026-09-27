@@ -29,6 +29,11 @@ namespace soa::config
         return normalized_language(d->values.value(QStringLiteral("language")).toString());
     }
 
+    bool Config::language_selected() const
+    {
+        return d->values.value(QStringLiteral("language_selected")).toBool();
+    }
+
     void Config::set_prerequisites_confirmed(const bool value)
     {
         const bool assistantAlreadyCurrent = d->values.value(QStringLiteral("setup_assistant_version")).toInt() == 1;
@@ -71,6 +76,12 @@ namespace soa::config
         const QString normalized = normalized_language(value);
         if (language() == normalized) return;
         d->values[QStringLiteral("language")] = normalized; persist_change();
+    }
+
+    void Config::set_language_selected(const bool value)
+    {
+        if (language_selected() == value) return;
+        d->values[QStringLiteral("language_selected")] = value; persist_change();
     }
 
 }

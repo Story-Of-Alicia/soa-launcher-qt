@@ -604,18 +604,18 @@ namespace soa::runtime
         }
 
         const bool proton = runtime_.runtime_is_proton();
-        QProcessEnvironment environment =
-            proton ? runtime_.umu_environment() : QProcessEnvironment::systemEnvironment();
+        QProcessEnvironment environment = proton ? runtime_.winetricks_environment()
+                                                 : QProcessEnvironment::systemEnvironment();
         QString program;
         if (proton)
         {
-            program = umu_path();
+            program = runtime_.proton_wine_binary();
             if (program.isEmpty() || !QFileInfo(program).isExecutable())
             {
-                fail_game_launch(QStringLiteral("Proton launch requires a working umu-run installation."));
+                fail_game_launch(QStringLiteral("The selected Proton runtime does not expose its "
+                                                "Wine executable for registry setup."));
                 return;
             }
-            environment.insert(QStringLiteral("PROTON_VERB"), QStringLiteral("runinprefix"));
         }
         else
         {
@@ -778,20 +778,20 @@ namespace soa::runtime
 
         pending_registry_file_ = registry_file;
         const bool proton = runtime_.runtime_is_proton();
-        QProcessEnvironment environment =
-            proton ? runtime_.umu_environment() : QProcessEnvironment::systemEnvironment();
+        QProcessEnvironment environment = proton ? runtime_.winetricks_environment()
+                                                 : QProcessEnvironment::systemEnvironment();
         QString program;
         if (proton)
         {
-            program = umu_path();
+            program = runtime_.proton_wine_binary();
             if (program.isEmpty() || !QFileInfo(program).isExecutable())
             {
                 QFile::remove(pending_registry_file_);
                 pending_registry_file_.clear();
-                fail_game_launch(QStringLiteral("Proton launch requires a working umu-run installation."));
+                fail_game_launch(QStringLiteral("The selected Proton runtime does not expose its "
+                                                "Wine executable for registry setup."));
                 return;
             }
-            environment.insert(QStringLiteral("PROTON_VERB"), QStringLiteral("runinprefix"));
         }
         else
         {

@@ -22,7 +22,16 @@ namespace soa::common::paths
 #if defined(Q_OS_MACOS)
         return QDir(application_support_root()).filePath(QStringLiteral("prefixes/shared"));
 #else
-        return QDir(QDir::homePath()).filePath(QStringLiteral("soa-launcher"));
+        return QDir(application_support_root()).filePath(QStringLiteral("prefixes/wine"));
+#endif
+    }
+
+    QString default_proton_compat_data_root()
+    {
+#if defined(Q_OS_MACOS)
+        return default_prefix_root();
+#else
+        return QDir(application_support_root()).filePath(QStringLiteral("prefixes/proton"));
 #endif
     }
 

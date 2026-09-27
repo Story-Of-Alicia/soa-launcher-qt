@@ -293,6 +293,41 @@ Your on-screen change is active only for this session.</source>
             <source>WARNING</source>
             <translation type="unfinished" />
         </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="128" />
+            <source>CHOOSE YOUR LANGUAGE</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="129" />
+            <source>Choose the language you want to use in the launcher.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="131" />
+            <source>Launcher language</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="132" />
+            <source>CONTINUE</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="133" />
+            <source>Continue with selected language</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="135" />
+            <source>Don't see your language?</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/LanguageSelection.cpp" line="136" />
+            <source>Help translate the launcher.</source>
+            <translation type="unfinished" />
+        </message>
     </context>
     <context>
         <name>Home &amp; Account</name>
@@ -644,15 +679,7 @@ Your on-screen change is active only for this session.</source>
             <source>%1 and %2</source>
             <translation type="unfinished" />
         </message>
-        <message>
-            <location filename="../src/i18n/TranslationCatalog.cpp" line="56" />
-            <location filename="../src/ui/PrerequisitesIntro.cpp" line="413" />
-            <source>%1 is the recommended setup for this computer. Alicia will use compatibility graphics by default.
-
-DXVK stays optional and can be enabled later in Settings. Nothing will be installed automatically.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
+<message>
             <location filename="../src/i18n/TranslationCatalog.cpp" line="57" />
             <location filename="../src/ui/PrerequisitesIntro.cpp" line="407" />
             <source>%1 is the recommended Wine setup for this Mac. Alicia will use compatibility graphics and a 64-bit Wine prefix. Nothing will be installed automatically.</source>
@@ -760,13 +787,7 @@ DXVK stays optional and can be enabled later in Settings. Nothing will be instal
             <source>Loading rules...</source>
             <translation type="unfinished" />
         </message>
-        <message>
-            <location filename="../src/ui/PrerequisitesIntro.cpp" line="144" />
-            <location filename="../src/ui/PrerequisitesIntro.cpp" line="225" />
-            <source>Looking for a usable Wine or Proton setup. Nothing will be installed automatically.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
+<message>
             <location filename="../src/ui/PrerequisitesIntro.cpp" line="141" />
             <location filename="../src/ui/PrerequisitesIntro.cpp" line="222" />
             <source>Looking for a usable Wine setup. Nothing will be installed automatically.</source>
@@ -872,12 +893,6 @@ Missing: %1. %2, then restart the launcher.</source>
             <source>Wine and Winetricks are required to prepare Alicia's Windows components.
 
 Missing: %1. %2, then restart the launcher.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
-            <location filename="../src/ui/PrerequisitesIntro.cpp" line="490" />
-            <location filename="../src/ui/PrerequisitesIntro.cpp" line="491" />
-            <source>You can still choose a different runtime manually.</source>
             <translation type="unfinished" />
         </message>
         <message>
@@ -1920,13 +1935,7 @@ See launcher.log for the complete command output.</source>
             <source>Choose the Wine installation used to run the game.</source>
             <translation type="unfinished" />
         </message>
-        <message>
-            <location filename="../src/ui/WineSelectMenu.cpp" line="662" />
-            <location filename="../src/ui/WineSelectMenu.cpp" line="663" />
-            <source>Choose the Wine or Proton version used to run the game.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
+<message>
             <location filename="../src/ui/WineSettings.cpp" line="191" />
             <source>Choose Wine app, executable, or folder</source>
             <translation type="unfinished" />
@@ -2189,12 +2198,7 @@ See launcher.log for the complete command output.</source>
             <source>No usable Wine installation was found. Install Wine or add a Wine app, executable, or folder.</source>
             <translation type="unfinished" />
         </message>
-        <message>
-            <location filename="../src/ui/WineSelectMenu.cpp" line="450" />
-            <source>No usable Wine or Proton runtimes were found on this system.</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
+<message>
             <location filename="../src/runtime/ProcessRunner.cpp" line="30" />
             <source>non-zero exit</source>
             <translation type="unfinished" />
@@ -2263,6 +2267,13 @@ See launcher.log for the complete command output.</source>
             <translation type="unfinished" />
         </message>
         <message>
+            <location filename="../src/runtime/PrefixSetupJob.cpp" line="706" />
+            <location filename="../src/ui/WineInstall.cpp" line="177" />
+            <location filename="../src/runtime/WineRegistry.cpp" line="299" />
+            <source>Automatic Proton setup requires UMU Launcher 1.4.0 or newer.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
             <location filename="../src/ui/WineSelectMenu.cpp" line="480" />
             <location filename="../src/ui/WineSelectMenu.cpp" line="482" />
             <source>ready</source>
@@ -2309,12 +2320,7 @@ See launcher.log for the complete command output.</source>
             <source>Scanning Wine installations…</source>
             <translation type="unfinished" />
         </message>
-        <message>
-            <location filename="../src/ui/WineSelectMenu.cpp" line="458" />
-            <source>Scanning Wine runtimes…</source>
-            <translation type="unfinished" />
-        </message>
-        <message>
+<message>
             <location filename="../src/runtime/WineRegistry.cpp" line="167" />
             <location filename="../src/runtime/WineRegistry.cpp" line="204" />
             <source>script or unknown architecture</source>
@@ -2695,7 +2701,152 @@ See launcher.log for the complete command output.</source>
             <source>winetricks: ready</source>
             <translation type="unfinished" />
         </message>
-    </context>
+        <message>
+            <source>Checking Wine, Winetricks, and UMU Launcher. Nothing will be installed automatically.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>LINUX SETUP NEEDED</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>USE UMU / PROTON</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Use UMU and Proton</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install Proton automatically</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Managed by UMU Launcher</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>UMU: %1 · Winetricks: %2</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>No installed Proton versions were found. You can let the launcher install Proton automatically instead.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>No usable Wine installations were found on this system.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Scanning Proton installations…</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Select Proton Folder</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Select Wine Binary</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Runtime Not Usable</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>The selected runtime could not be used.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Wrong Runtime Type</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Choose a Proton installation for the UMU / Proton setup.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Choose a Wine installation for the Wine setup.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>SELECT PROTON</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>SELECT WINE</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Let the launcher manage UMU-Proton, or choose a Proton installation already on this computer.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Installing Proton and creating prefix...</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Select Proton Compatibility Data Location</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>PROTON PREFIX SETUP</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>UMU will install and manage Proton, then create Alicia's prefix in the selected compatibility-data directory.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>The selected Proton installation will create Alicia's prefix in the selected compatibility-data directory.</source>
+            <translation type="unfinished"></translation>
+        </message>
+            <message>
+            <source>CHOOSE WINE</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>CHOOSE SETUP</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Everything is ready. Choose how to run the game.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Missing: %1</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Choose Wine</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <location filename="../src/ui/AdvancedSettings.cpp" line="158" />
+            <source>Normal is recommended. Fallback profiles isolate targeted graphics or audio behavior.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSettings.cpp" line="51" />
+            <source>Unavailable on macOS. Wine uses its built-in Direct3D renderer.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSettings.cpp" line="138" />
+            <source>CUSTOM WINE</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSettings.cpp" line="139" />
+            <source>A Wine app, executable, or installation folder. Blank uses Wine from PATH.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSelectMenu.cpp" line="387" />
+            <source>Latest stable UMU-Proton</source>
+            <translation type="unfinished" />
+        </message>
+</context>
     <context>
         <name>Network &amp; Transfers</name>
         <message>

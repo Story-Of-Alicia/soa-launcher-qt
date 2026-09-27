@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "common/AppPaths.hpp"
 #include "common/GameVersion.hpp"
 #include "runtime/GameSession.hpp"
 #include "runtime/MacWineRuntime.hpp"
@@ -25,6 +26,17 @@ class PrefixPathTests final : public QObject
     Q_OBJECT
 
 private slots:
+#if defined(Q_OS_LINUX)
+    void default_prefixes_live_under_launcher_data()
+    {
+        const QString root = soa::common::paths::application_support_root();
+        QCOMPARE(soa::common::paths::default_prefix_root(),
+                 QDir(root).filePath(QStringLiteral("prefixes/wine")));
+        QCOMPARE(soa::common::paths::default_proton_compat_data_root(),
+                 QDir(root).filePath(QStringLiteral("prefixes/proton")));
+    }
+#endif
+
     void maps_prefix_file_to_windows_c_path()
     {
         QTemporaryDir directory;

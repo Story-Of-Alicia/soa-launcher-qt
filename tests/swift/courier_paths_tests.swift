@@ -150,13 +150,17 @@ struct CourierPathTests
 
         let dxvkRoot = temporary.appendingPathComponent("dxvk", isDirectory: true)
         try FileManager.default.createDirectory(at: dxvkRoot, withIntermediateDirectories: true)
-        for name in ["d3d9.dll", "d3dx9_31.dll", "d3dx9_31.dll.bak"] {
+        for name in ["d3d9.dll", "d3dx9_31.dll", "d3dx9_31.dll.bak", "Alicia.dxvk-cache"] {
             try Data().write(to: dxvkRoot.appendingPathComponent(name))
         }
+        let nested = dxvkRoot.appendingPathComponent("mods", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try Data().write(to: nested.appendingPathComponent("fake.dxvk-cache"))
         let dxvkUnexpected = try unexpectedInstallFiles(
             installRoot: dxvkRoot, expectedRelativePaths: ["d3dx9_31.dll.bak"])
-        guard dxvkUnexpected.isEmpty else {
-            fatalError("DXVK compatibility files were incorrectly rejected: \(dxvkUnexpected)")
+        guard !dxvkUnexpected.contains("Alicia.dxvk-cache")
+                && dxvkUnexpected.contains("mods/fake.dxvk-cache") else {
+            fatalError("DXVK cache allowlist was not limited to the install root: \(dxvkUnexpected)")
         }
     }
 }

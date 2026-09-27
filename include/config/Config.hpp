@@ -38,6 +38,7 @@ namespace soa::config
         QString game_install_path(soa::common::game::GameVersion version) const;
         bool    use_dxvk() const;
         bool    runtime_selected() const;
+        [[nodiscard]] bool runtime_is_proton() const;
         QString wine_args() const;
         QString macos_compatibility_profile() const;
         bool    diagnostics_enabled() const;
@@ -51,6 +52,7 @@ namespace soa::config
         QString after_game_start() const;
         QString launcher_size() const;
         QString language() const;
+        bool language_selected() const;
 
         soa::common::game::GameVersion game_version() const;
         QString game_id() const;
@@ -86,6 +88,7 @@ namespace soa::config
         void set_after_game_start(const QString& value);
         void set_launcher_size(const QString& value);
         void set_language(const QString& value);
+        void set_language_selected(bool value);
 
         void set_game_version(soa::common::game::GameVersion value);
         void set_game_args(const QString& value);
@@ -150,7 +153,6 @@ namespace soa::config
         void rebase_game_install_paths(const QString& old_prefix,
                                        const QString& old_playtest_path,
                                        const QString& old_alicia2_path);
-        bool runtime_is_proton() const;
         void persist_change();
         void normalize_schema();
         static QString game_install_path_key(soa::common::game::GameVersion version);

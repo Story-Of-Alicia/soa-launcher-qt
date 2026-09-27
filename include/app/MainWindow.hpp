@@ -50,6 +50,7 @@ class LauncherUpdate;
 class AuthHandler;
 class LauncherMenuController;
 class SystemTrayController;
+class LanguageSelection;
 
 class MainWindow : public QWidget
 {
@@ -79,6 +80,7 @@ private:
     void setup_discord_rpc();
     void setup_version_label();
     void setup_settings();
+    void setup_language_selection();
     void setup_prerequisites();
     void setup_rules();
     void setup_repair_files();
@@ -109,6 +111,7 @@ private:
     void show_credits();
     void request_quit();
     void retranslate_dynamic_text();
+    void begin_initial_state();
     [[nodiscard]] bool can_run_game_directly() const;
 
     bool chrome_hidden {};
@@ -131,6 +134,7 @@ private:
     RulesAgreement* rules_agreement {};
     RepairFiles* repair_files {};
     Settings* settings {};
+    LanguageSelection* language_selection {};
     WineInstall* wine_install {};
     GameInstall* game_install {};
     DownloadProgress* update_progress {};

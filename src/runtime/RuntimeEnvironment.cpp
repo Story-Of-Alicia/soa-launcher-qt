@@ -1,4 +1,5 @@
 #include "runtime/RuntimeLocator.hpp"
+#include "runtime/WineRegistry.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -9,73 +10,6 @@
 
 namespace soa::runtime
 {
-    bool repair_doubled_proton_prefix(const QString& compat_data_root)
-    {
-        if (compat_data_root.isEmpty())
-            return false;
-
-        const QDir root(compat_data_root);
-        const QString prefix = root.filePath(QStringLiteral("pfx"));
-        const QString inner = QDir(prefix).filePath(QStringLiteral("pfx"));
-
-        if (!QFileInfo(inner).isDir())
-            return false;
-
-
-
-        if (QFileInfo(QDir(prefix).filePath(QStringLiteral("drive_c"))).isDir())
-            return false;
-
-        const bool innerIsRealPrefix =
-            QFileInfo(QDir(inner).filePath(QStringLiteral("drive_c"))).isDir();
-
-        if (!innerIsRealPrefix)
-        {
-
-            SPDLOG_INFO("prefix: removing empty doubled prefix at {}", inner.toStdString());
-            return QDir(inner).removeRecursively();
-        }
-
-
-
-
-
-        const QString staging = root.filePath(QStringLiteral(".pfx-migrating"));
-        if (QFileInfo::exists(staging))
-        {
-            SPDLOG_WARN("prefix: migration staging path {} already exists; skipping",
-                        staging.toStdString());
-            return false;
-        }
-
-        SPDLOG_INFO("prefix: found doubled Proton prefix; hoisting {} to {}",
-                    inner.toStdString(), prefix.toStdString());
-
-        if (!QDir().rename(prefix, staging))
-        {
-            SPDLOG_ERROR("prefix: could not move {} aside for migration", prefix.toStdString());
-            return false;
-        }
-
-        const QString stagedInner = QDir(staging).filePath(QStringLiteral("pfx"));
-        if (!QDir().rename(stagedInner, prefix))
-        {
-            SPDLOG_ERROR("prefix: could not hoist {}; restoring original layout",
-                         stagedInner.toStdString());
-            if (!QDir().rename(staging, prefix))
-                SPDLOG_CRITICAL("prefix: could not restore {} from {}",
-                                prefix.toStdString(), staging.toStdString());
-            return false;
-        }
-
-        if (!QDir(staging).removeRecursively())
-            SPDLOG_WARN("prefix: hoisted the prefix but could not remove leftover {}",
-                        staging.toStdString());
-
-        SPDLOG_INFO("prefix: doubled prefix repaired");
-        return true;
-    }
-
     QProcessEnvironment RuntimeLocator::make_umu_environment(const RuntimeSettings& settings,
                                                              const QString& proton_root)
     {
@@ -88,8 +22,21 @@ namespace soa::runtime
                  QStringLiteral("STEAM_COMPAT_SHADER_PATH"),
                  QStringLiteral("STEAM_COMPAT_TOOL_PATHS"),
                  QStringLiteral("STEAM_COMPAT_MOUNTS"),
+                 QStringLiteral("STEAM_COMPAT_LIBRARY_PATHS"),
                  QStringLiteral("STEAM_COMPAT_LAUNCHER_SERVICE"),
-                 QStringLiteral("SteamAppId")})
+                 QStringLiteral("PROTONPATH"),
+                 QStringLiteral("PROTON_VERB"),
+                 QStringLiteral("PROTON_USE_WINED3D"),
+                 QStringLiteral("UMU_FOLDERS_PATH"),
+                 QStringLiteral("UMU_NO_PROTON"),
+                 QStringLiteral("UMU_NO_RUNTIME"),
+                 QStringLiteral("UMU_RUNTIME_UPDATE"),
+                 QStringLiteral("UMU_CONTAINER_NSENTER"),
+                 QStringLiteral("UMU_ZENITY"),
+                 QStringLiteral("UMU_STEAM_GAME_ID"),
+                 QStringLiteral("RUNTIMEPATH"),
+                 QStringLiteral("SteamAppId"),
+                 QStringLiteral("SteamGameId")})
         {
             environment.remove(key);
         }
@@ -115,15 +62,24 @@ namespace soa::runtime
         }
         environment.insert(QStringLiteral("GAMEID"), QStringLiteral("umu-storyofalicia"));
         environment.insert(QStringLiteral("STORE"), QStringLiteral("none"));
-        environment.insert(QStringLiteral("PROTONPATH"), proton_root);
 
+        const QString data_home = managed_umu_data_home();
+        if (!data_home.isEmpty())
+        {
+            QDir().mkpath(data_home);
+            environment.insert(QStringLiteral("UMU_FOLDERS_PATH"), data_home);
+        }
 
+        if (!is_managed_proton(settings.configured_runtime))
+        {
+            environment.insert(QStringLiteral("PROTONPATH"), proton_root);
+        }
+        else
+        {
+            environment.remove(QStringLiteral("PROTONPATH"));
+        }
 
-
-        environment.insert(QStringLiteral("WINEPREFIX"),
-                           settings.proton_compat_data_root.isEmpty()
-                               ? settings.prefix_root
-                               : settings.proton_compat_data_root);
+        environment.insert(QStringLiteral("WINEPREFIX"), settings.prefix_root);
         environment.insert(QStringLiteral("WINEDLLOVERRIDES"), QStringLiteral("winegstreamer="));
         if (!settings.use_dxvk)
             environment.insert(QStringLiteral("PROTON_USE_WINED3D"), QStringLiteral("1"));
@@ -171,8 +127,11 @@ namespace soa::runtime
                 upper == QStringLiteral("WINEDEBUG") ||
                 upper == QStringLiteral("WINEDLLOVERRIDES") ||
                 upper == QStringLiteral("LD_PRELOAD") || upper == QStringLiteral("GAMEID") ||
-                upper == QStringLiteral("STORE") || upper == QStringLiteral("STEAMAPPID") ||
+                upper == QStringLiteral("STORE") ||
+                upper == QStringLiteral("RUNTIMEPATH") ||
+                upper == QStringLiteral("STEAMAPPID") ||
                 upper == QStringLiteral("STEAMGAMEID") ||
+                upper.startsWith(QStringLiteral("UMU_")) ||
                 upper.startsWith(QStringLiteral("DYLD_")) ||
                 upper.startsWith(QStringLiteral("CX_")) ||
                 upper.startsWith(QStringLiteral("PROTON_")) ||
