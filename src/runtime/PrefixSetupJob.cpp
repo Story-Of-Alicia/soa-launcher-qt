@@ -670,7 +670,7 @@ namespace soa::runtime
              runtime_.wine_binary(),
              {QStringLiteral("reg.exe"), QStringLiteral("add"), d3d_key, QStringLiteral("/v"),
               QStringLiteral("VideoMemorySize"), QStringLiteral("/t"), QStringLiteral("REG_SZ"),
-              QStringLiteral("/d"), QStringLiteral("4096"), QStringLiteral("/f")},
+              QStringLiteral("/d"), QStringLiteral("2048"), QStringLiteral("/f")},
              environment,
              k_registry_timeout_ms,
              false,
