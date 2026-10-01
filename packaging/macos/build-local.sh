@@ -15,6 +15,12 @@ soa_validate_output_directory "$BUILD_DIR" "$PROJECT_ROOT"
 soa_validate_build_cache "$BUILD_DIR" "$PROJECT_ROOT" Xcode
 ARCHS="${SOA_MACOS_ARCHS:-${SOA_MACOS_ARCH:-x86_64;arm64}}"
 BUILD_TYPE="${SOA_BUILD_TYPE:-Release}"
+SOA_BUILD_TESTS="${SOA_BUILD_TESTS:-${SOA_BUILD_TESTING:-OFF}}"
+case "$SOA_BUILD_TESTS" in
+  ON|on|1|TRUE|true|YES|yes) SOA_BUILD_TESTS=ON ;;
+  OFF|off|0|FALSE|false|NO|no|"") SOA_BUILD_TESTS=OFF ;;
+  *) echo "SOA_BUILD_TESTS must be ON or OFF." >&2; exit 2 ;;
+esac
 IFS=';' read -r -a REQUESTED_ARCHS <<< "$ARCHS"
 
 for tool in cmake swift xcrun lipo otool file i686-w64-mingw32-gcc i686-w64-mingw32-g++; do
@@ -23,6 +29,10 @@ for tool in cmake swift xcrun lipo otool file i686-w64-mingw32-gcc i686-w64-ming
     exit 1
   fi
 done
+if [ "$SOA_BUILD_TESTS" = ON ] && ! command -v ctest >/dev/null 2>&1; then
+  echo "Required tool not found: ctest" >&2
+  exit 1
+fi
 
 QT_PREFIX="${SOA_QT_PREFIX:-${QT_ROOT_DIR:-}}"
 if [ -z "$QT_PREFIX" ] && command -v qtpaths6 >/dev/null 2>&1; then
@@ -96,9 +106,12 @@ cmake \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
   "${CMAKE_QT_ARGS[@]}" \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
-  -DBUILD_TESTING=OFF
+  -DBUILD_TESTING="$SOA_BUILD_TESTS"
 
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
+if [ "$SOA_BUILD_TESTS" = ON ]; then
+  ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure
+fi
 
 APP="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" app_bundle)"
 if [ ! -d "$APP" ]; then

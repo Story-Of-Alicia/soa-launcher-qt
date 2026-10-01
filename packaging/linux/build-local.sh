@@ -21,6 +21,12 @@ echo "Launcher source directory: $PROJECT_ROOT"
 BUILD_DIR="$(soa_absolute_directory "${SOA_BUILD_DIR:-$SCRIPT_DIR/build-linux-local}")"
 APPDIR="$(soa_absolute_directory "${SOA_APPDIR:-$SCRIPT_DIR/AppDir-local}")"
 BUILD_TYPE="${SOA_BUILD_TYPE:-Release}"
+SOA_BUILD_TESTS="${SOA_BUILD_TESTS:-${SOA_BUILD_TESTING:-OFF}}"
+case "$SOA_BUILD_TESTS" in
+  ON|on|1|TRUE|true|YES|yes) SOA_BUILD_TESTS=ON ;;
+  OFF|off|0|FALSE|false|NO|no|"") SOA_BUILD_TESTS=OFF ;;
+  *) echo "SOA_BUILD_TESTS must be ON or OFF." >&2; exit 2 ;;
+esac
 soa_validate_output_directory "$BUILD_DIR" "$PROJECT_ROOT"
 soa_validate_output_directory "$APPDIR" "$PROJECT_ROOT"
 case "$BUILD_DIR/" in
@@ -84,7 +90,6 @@ get_tool() {
 
 require_command cmake
 require_command ninja
-require_command ctest
 require_command wget
 require_command file
 require_command find
@@ -94,8 +99,9 @@ require_command desktop-file-validate
 require_command patchelf
 require_command i686-w64-mingw32-gcc
 require_command i686-w64-mingw32-g++
-
-
+if [ "$SOA_BUILD_TESTS" = ON ]; then
+  require_command ctest
+fi
 
 if [ -z "${QMAKE:-}" ]; then
   QMAKE="$(command -v qmake6 || true)"
@@ -123,12 +129,12 @@ cmake \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_INSTALL_DATADIR=share \
   -DCMAKE_INSTALL_LIBEXECDIR=libexec \
-  -DBUILD_TESTING="${SOA_BUILD_TESTING:-OFF}" \
+  -DBUILD_TESTING="$SOA_BUILD_TESTS" \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
   -DSOA_PORTABLE_BUILD=OFF
 
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
-if grep -q '^BUILD_TESTING:BOOL=ON$' "$BUILD_DIR/CMakeCache.txt"; then
+if [ "$SOA_BUILD_TESTS" = ON ]; then
   QT_QPA_PLATFORM=offscreen LANG=C.UTF-8 LC_ALL=C.UTF-8 \
     ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure --no-tests=error
 fi

@@ -131,6 +131,7 @@ namespace soa::runtime
                 upper == QStringLiteral("RUNTIMEPATH") ||
                 upper == QStringLiteral("STEAMAPPID") ||
                 upper == QStringLiteral("STEAMGAMEID") ||
+                upper == QStringLiteral("PROTONPATH") ||
                 upper.startsWith(QStringLiteral("UMU_")) ||
                 upper.startsWith(QStringLiteral("DYLD_")) ||
                 upper.startsWith(QStringLiteral("CX_")) ||

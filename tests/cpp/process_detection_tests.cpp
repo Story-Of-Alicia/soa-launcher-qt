@@ -94,6 +94,19 @@ private slots:
         QVERIFY(process->source_line.contains(QStringLiteral("Alicia.exe")));
     }
 
+    void finds_game_process_behind_umu_wrapper()
+    {
+        const QString output = QStringLiteral(
+            " 175130 /usr/bin/python3 /usr/bin/umu-run C:\\game\\Alicia.exe -GameID 4\n"
+            " 175228 /home/test/.local/share/umu/compatibilitytools/UMU-Proton/files/bin/wine64-preloader "
+            "C:\\game\\Alicia.exe -GameID 4\n");
+        const auto process = soa::runtime::find_host_process(
+            output, QStringLiteral("Alicia.exe"));
+        QVERIFY(process.has_value());
+        QCOMPARE(process->pid, qint64(175228));
+        QVERIFY(process->source_line.contains(QStringLiteral("wine64-preloader")));
+    }
+
     void ignores_alicia_name_inside_log_injector_wrapper()
     {
         const QString output = QStringLiteral(

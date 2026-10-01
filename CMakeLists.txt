@@ -5,7 +5,7 @@ if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
 endif()
 
 project(soa_launcher
-        LANGUAGES C CXX
+        LANGUAGES C CXX Swift
         DESCRIPTION "Story of Alicia Launcher"
         VERSION 1.1.0
 )
@@ -17,10 +17,7 @@ include(cmake/ProjectSettings.cmake)
 include(cmake/UpdateConfiguration.cmake)
 include(cmake/Dependencies.cmake)
 
-option(BUILD_TESTING "Build tests" OFF)
-if(BUILD_TESTING)
-    include(CTest)
-endif()
+include(CTest)
 
 add_subdirectory(src/common)
 add_subdirectory(src/credentials)

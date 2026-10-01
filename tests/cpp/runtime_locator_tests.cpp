@@ -54,6 +54,11 @@ class RuntimeLocatorTests final : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase()
+    {
+        QStandardPaths::setTestModeEnabled(true);
+    }
+
     void resolves_runtime_folder_to_wine_entry_point()
     {
         QTemporaryDir directory;
@@ -251,12 +256,19 @@ private slots:
     void managed_proton_detection_does_not_capture_custom_builds()
     {
         const QString dataHome = soa::runtime::managed_umu_data_home();
-        const QString managed = QDir(dataHome).filePath(
+        const QString identifier = soa::runtime::managed_proton_identifier();
+        const QString current = QDir(dataHome).filePath(
+            QStringLiteral("umu/compatibilitytools/UMU-Proton-10.0-4"));
+        const QString legacy = QDir(dataHome).filePath(
             QStringLiteral("Steam/compatibilitytools.d/UMU-Proton-10.0-4"));
         const QString custom = QDir(dataHome).filePath(
-            QStringLiteral("Steam/compatibilitytools.d/GE-Proton10-15"));
+            QStringLiteral("umu/compatibilitytools/GE-Proton10-15"));
 
-        QVERIFY(soa::runtime::is_managed_proton(managed));
+        QCOMPARE(identifier, QDir(dataHome).filePath(
+            QStringLiteral("umu/compatibilitytools/UMU-Latest")));
+        QVERIFY(soa::runtime::is_managed_proton(identifier));
+        QVERIFY(soa::runtime::is_managed_proton(current));
+        QVERIFY(soa::runtime::is_managed_proton(legacy));
         QVERIFY(!soa::runtime::is_managed_proton(custom));
     }
 
@@ -289,6 +301,26 @@ private slots:
         QCOMPARE(soa::runtime::WineRegistry::identify(directory.path(), &usable),
                  soa::runtime::RuntimeType::Proton);
         QVERIFY(usable);
+    }
+
+    void umu_environment_uses_wined3d_when_dxvk_is_disabled()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString prefix = directory.filePath(QStringLiteral("compat/pfx"));
+        soa::runtime::RuntimeSettings settings {
+            QStringLiteral("proton"), prefix, QString(), QStringLiteral("win64"), QString(), false};
+
+        const QProcessEnvironment environment =
+            soa::runtime::RuntimeLocator::make_umu_environment(settings, directory.path());
+
+        QCOMPARE(environment.value(QStringLiteral("WINEPREFIX")), prefix);
+        QCOMPARE(environment.value(QStringLiteral("PROTONPATH")), directory.path());
+        QCOMPARE(environment.value(QStringLiteral("PROTON_USE_WINED3D")), QStringLiteral("1"));
+        QCOMPARE(environment.value(QStringLiteral("WINEDLLOVERRIDES")),
+                 QStringLiteral("winegstreamer="));
+        QCOMPARE(environment.value(QStringLiteral("GAMEID")), QStringLiteral("umu-storyofalicia"));
+        QCOMPARE(environment.value(QStringLiteral("STORE")), QStringLiteral("none"));
     }
 
     void umu_environment_drops_invalid_tmpdir()
