@@ -36,8 +36,6 @@ The launcher is designed to work for regular players without requiring knowledge
 | macOS Intel | Experimental / untested |
 | Windows | Use the original Windows launcher |
 
-The macOS launcher is distributed as a universal binary supporting both Apple Silicon and Intel. Game compatibility depends on the configured Wine-compatible runtime.
-
 > **Note:** If there is not found any new compatible wine runtime that can provide acceptable game performance
 > then macOS support will be discontinued in December 2026.
 
