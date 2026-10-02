@@ -41,6 +41,7 @@ namespace soa::config
         [[nodiscard]] bool runtime_is_proton() const;
         QString wine_args() const;
         QString macos_compatibility_profile() const;
+        bool    macos_video_decoder_workaround() const;
         bool    diagnostics_enabled() const;
 
         bool    prerequisites_confirmed() const;
@@ -77,6 +78,7 @@ namespace soa::config
         void set_runtime_selected(bool value);
         void set_wine_args(const QString& value);
         void set_macos_compatibility_profile(const QString& value);
+        void set_macos_video_decoder_workaround(bool value);
         void set_diagnostics_enabled(bool value);
 
         void set_prerequisites_confirmed(bool value);

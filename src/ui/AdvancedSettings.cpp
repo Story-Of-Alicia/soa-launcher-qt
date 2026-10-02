@@ -20,7 +20,13 @@ namespace aset = soa::ui::layout::advanced_settings;
 
 namespace
 {
+#if defined(Q_OS_MACOS)
+    constexpr int kAdvancedRowCount = 5;
+    constexpr int kDiagnosticRow = 4;
+#else
     constexpr int kAdvancedRowCount = 4;
+    constexpr int kDiagnosticRow = 3;
+#endif
     constexpr const char* kDiagnosticTitle =
         QT_TRANSLATE_NOOP("Launcher", "DIAGNOSTIC MODE");
     constexpr const char* kDiagnosticLinuxDescription =
@@ -44,6 +50,7 @@ AdvancedSettings::AdvancedSettings(QWidget* parent) : QWidget(parent)
     setup_game_args_option();
 #if defined(Q_OS_MACOS)
     setup_macos_compatibility_option();
+    setup_macos_video_decoder_option();
 #else
     setup_umu_runner_option();
 #endif
@@ -195,10 +202,56 @@ void AdvancedSettings::setup_macos_compatibility_option()
 #endif
 }
 
+void AdvancedSettings::setup_macos_video_decoder_option()
+{
+#if defined(Q_OS_MACOS)
+    const QSize w = window()->size();
+    const int y = aset::row(3, kAdvancedRowCount);
+
+    soa::ui::simple_utils::make_label_block(
+        this, w, y,
+        "VIDEO DECODER WORKAROUND",
+        "Disables Wine GStreamer to avoid video decoder crashes. Videos that require it may not play.");
+
+    auto* slider = soa::ui::simple_utils::make_flat_button(this);
+    const QRect geometry = ls::slider_rect(w, y);
+    slider->setGeometry(geometry);
+    slider->setIconSize(geometry.size());
+    slider->setAccessibleName(soa::i18n::translate("Video decoder workaround"));
+    slider->setAccessibleDescription(
+        soa::i18n::translate("Disable Wine GStreamer to avoid video decoder crashes"));
+    slider->setProperty("soa_i18n_accessible_name_source",
+                        QStringLiteral("Video decoder workaround"));
+    slider->setProperty("soa_i18n_accessible_description_source",
+                        QStringLiteral("Disable Wine GStreamer to avoid video decoder crashes"));
+
+    const auto paint = [slider, size = geometry.size()](const bool enabled)
+    {
+        const auto& asset = enabled
+            ? soa::ui::assets::button(soa::ui::assets::Button::SliderOn)
+            : soa::ui::assets::button(soa::ui::assets::Button::SliderOff);
+        slider->setIcon(QIcon(asset.normal.scaled(
+            size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    };
+
+    paint(Config::instance().macos_video_decoder_workaround());
+    connect(slider, &QPushButton::clicked, this, [paint]()
+    {
+        Config::instance().set_macos_video_decoder_workaround(
+            !Config::instance().macos_video_decoder_workaround());
+        paint(Config::instance().macos_video_decoder_workaround());
+    });
+    connect(&Config::instance(), &Config::changed, slider, [paint]()
+    {
+        paint(Config::instance().macos_video_decoder_workaround());
+    });
+#endif
+}
+
 void AdvancedSettings::setup_diagnostics_option()
 {
     const QSize w = window()->size();
-    const int y = aset::row(3, kAdvancedRowCount);
+    const int y = aset::row(kDiagnosticRow, kAdvancedRowCount);
 
     soa::ui::simple_utils::make_label_block(
         this, w, y, QString::fromUtf8(kDiagnosticTitle),

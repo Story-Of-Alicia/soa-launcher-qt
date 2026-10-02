@@ -2082,6 +2082,11 @@ namespace soa::runtime
             SPDLOG_INFO("Appending custom Wine DLL overrides: {}",
                         custom_wine_overrides.toStdString());
         }
+        if (Config::instance().macos_video_decoder_workaround())
+        {
+            macos_dll_overrides += QStringLiteral(";winegstreamer=");
+            SPDLOG_INFO("macOS video decoder workaround enabled: Wine GStreamer disabled");
+        }
         environment.insert(QStringLiteral("WINEDLLOVERRIDES"), macos_dll_overrides);
         SPDLOG_INFO("Effective Alicia WINEDLLOVERRIDES: {}",
                     macos_dll_overrides.toStdString());

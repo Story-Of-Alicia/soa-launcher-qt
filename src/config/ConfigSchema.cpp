@@ -59,6 +59,12 @@ namespace soa::config
             d->values.value(QStringLiteral("use_dxvk")).toBool();
         d->values[QStringLiteral("runtime_selected")] =
             d->values.value(QStringLiteral("runtime_selected")).toBool();
+#if defined(Q_OS_MACOS)
+        d->values[QStringLiteral("macos_video_decoder_workaround")] =
+            d->values.value(QStringLiteral("macos_video_decoder_workaround")).toBool();
+#else
+        d->values.remove(QStringLiteral("macos_video_decoder_workaround"));
+#endif
         d->values[QStringLiteral("diagnostics_enabled")] =
             d->values.value(QStringLiteral("diagnostics_enabled")).toBool();
         d->values[QStringLiteral("prerequisites_confirmed")] =
@@ -174,6 +180,9 @@ namespace soa::config
         setIfMissing(QStringLiteral("runtime_selected"), false);
         setIfMissing(QStringLiteral("wine_args"), QString());
         setIfMissing(QStringLiteral("macos_compatibility_profile"), QStringLiteral("default"));
+#if defined(Q_OS_MACOS)
+        setIfMissing(QStringLiteral("macos_video_decoder_workaround"), false);
+#endif
         if (!d->values.contains(QStringLiteral("diagnostics_enabled")) &&
             d->values.contains(QStringLiteral("macos_deep_diagnostics")))
         {

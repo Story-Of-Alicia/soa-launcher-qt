@@ -18,6 +18,7 @@ private:
     void setup_game_path_option();
     void setup_umu_runner_option();
     void setup_macos_compatibility_option();
+    void setup_macos_video_decoder_option();
     void setup_diagnostics_option();
     void retranslate_diagnostics();
 

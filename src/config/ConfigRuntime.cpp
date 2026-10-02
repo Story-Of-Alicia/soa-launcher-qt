@@ -34,6 +34,15 @@ namespace soa::config
             ? value : QStringLiteral("default");
     }
 
+    bool Config::macos_video_decoder_workaround() const
+    {
+#if defined(Q_OS_MACOS)
+        return d->values.value(QStringLiteral("macos_video_decoder_workaround")).toBool();
+#else
+        return false;
+#endif
+    }
+
     bool Config::diagnostics_enabled() const
     {
         return d->values.value(QStringLiteral("diagnostics_enabled")).toBool();
@@ -269,6 +278,18 @@ namespace soa::config
         if (macos_compatibility_profile() == normalized) return;
         d->values[QStringLiteral("macos_compatibility_profile")] = normalized;
         persist_change();
+    }
+
+    void Config::set_macos_video_decoder_workaround(const bool value)
+    {
+#if defined(Q_OS_MACOS)
+        if (macos_video_decoder_workaround() == value)
+            return;
+        d->values[QStringLiteral("macos_video_decoder_workaround")] = value;
+        persist_change();
+#else
+        Q_UNUSED(value);
+#endif
     }
 
     void Config::set_diagnostics_enabled(const bool value)

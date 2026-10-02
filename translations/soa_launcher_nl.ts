@@ -4092,6 +4092,26 @@ See launcher.log for the complete command output.</source>
             <source>Wine settings tab</source>
             <translation type="unfinished" />
         </message>
+        <message>
+            <location filename="../src/ui/AdvancedSettings.cpp" line="213" />
+            <source>VIDEO DECODER WORKAROUND</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/AdvancedSettings.cpp" line="214" />
+            <source>Disables Wine GStreamer to avoid video decoder crashes. Videos that require it may not play.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/AdvancedSettings.cpp" line="220" />
+            <source>Video decoder workaround</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/AdvancedSettings.cpp" line="222" />
+            <source>Disable Wine GStreamer to avoid video decoder crashes</source>
+            <translation type="unfinished" />
+        </message>
     </context>
     <context>
         <name>About &amp; Credits</name>
