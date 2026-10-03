@@ -6,6 +6,15 @@
 
 namespace soa::runtime
 {
+    enum class RuntimeType;
+
+    enum class WinetricksBackend
+    {
+        None,
+        Host,
+        Umu
+    };
+
     enum class PrefixArchitecture
     {
         Unknown,
@@ -59,5 +68,8 @@ namespace soa::runtime
         static bool remove_marker(const QString& prefix);
         static PrefixInspection inspect(const QString& prefix, const QString& runtime, bool proton);
         static QStringList missing_packages(const QString& prefix, bool proton, bool request_dxvk);
+        static WinetricksBackend required_winetricks_backend(const QString& prefix, RuntimeType type,
+                                                              const QString& runtime_path,
+                                                              bool request_dxvk);
     };
 }

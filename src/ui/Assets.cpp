@@ -108,6 +108,8 @@ namespace soa::ui::assets
             {Image::BoxSettings, "box-settings.png"},
             {Image::BoxUpdate, "box-update.png"},
             {Image::BoxWaitingForAuth, "box-waiting-for-auth.png"},
+            {Image::Checkbox, "checkbox.png"},
+            {Image::CheckboxTicked, "checkbox-ticked.png"},
             {Image::CloseIcon, "close-icon2.png"},
             {Image::CloseNormal, "close-normal.png"},
             {Image::CloseSettings, "close-settings.png"},

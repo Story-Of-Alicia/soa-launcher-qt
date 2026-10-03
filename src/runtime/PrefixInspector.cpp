@@ -286,4 +286,17 @@ namespace soa::runtime
         packages.removeDuplicates();
         return packages;
     }
+
+    WinetricksBackend PrefixInspector::required_winetricks_backend(
+        const QString& prefix, const RuntimeType type, const QString& runtime_path,
+        const bool request_dxvk)
+    {
+        const bool proton = type == RuntimeType::Proton;
+        if (missing_packages(prefix, proton, request_dxvk).isEmpty())
+            return WinetricksBackend::None;
+        if (proton && WineRegistry::proton_supports_umu_winetricks(runtime_path))
+            return WinetricksBackend::Umu;
+        return WinetricksBackend::Host;
+    }
+
 }

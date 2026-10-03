@@ -188,6 +188,57 @@ private slots:
     }
 #endif
 
+    void winetricks_backend_matches_actual_prefix_work()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString prefix = directory.filePath(QStringLiteral("prefix"));
+
+#if defined(Q_OS_MACOS)
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Wine, QStringLiteral("/tmp/wine"), false),
+                 soa::runtime::WinetricksBackend::None);
+#else
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Wine, QStringLiteral("/tmp/wine"), false),
+                 soa::runtime::WinetricksBackend::Host);
+
+        const QString geProton = directory.filePath(QStringLiteral("GE-Proton10-1"));
+        QVERIFY(QDir().mkpath(geProton));
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Proton, geProton, false),
+                 soa::runtime::WinetricksBackend::Umu);
+
+        const QString plainProton = directory.filePath(QStringLiteral("Proton-10"));
+        QVERIFY(QDir().mkpath(plainProton));
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Proton, plainProton, false),
+                 soa::runtime::WinetricksBackend::Host);
+
+        const QString system32 = QDir(prefix).filePath(QStringLiteral("drive_c/windows/system32"));
+        QVERIFY(QDir().mkpath(system32));
+        for (const QString& dll : {QStringLiteral("d3dx9_43.dll"),
+                                   QStringLiteral("d3dcompiler_47.dll"),
+                                   QStringLiteral("msvcp140.dll"),
+                                   QStringLiteral("vcruntime140.dll")})
+        {
+            QFile file(QDir(system32).filePath(dll));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QVERIFY(file.write("ready") > 0);
+        }
+
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Wine, QStringLiteral("/tmp/wine"), false),
+                 soa::runtime::WinetricksBackend::None);
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Wine, QStringLiteral("/tmp/wine"), true),
+                 soa::runtime::WinetricksBackend::Host);
+        QCOMPARE(soa::runtime::PrefixInspector::required_winetricks_backend(
+                     prefix, soa::runtime::RuntimeType::Proton, plainProton, false),
+                 soa::runtime::WinetricksBackend::None);
+#endif
+    }
+
     void reads_architecture_from_user_registry()
     {
         QTemporaryDir directory;

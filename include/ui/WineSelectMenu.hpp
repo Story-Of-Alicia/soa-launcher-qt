@@ -32,7 +32,10 @@ private:
     void select_row(int index);
     void confirm();
     void retranslate_dynamic_text();
+    void update_runtime_status();
     [[nodiscard]] bool proton_mode() const;
+    [[nodiscard]] bool host_winetricks_required(const soa::runtime::WineInstall& runtime) const;
+    [[nodiscard]] bool runtime_ready(const soa::runtime::WineInstall& runtime) const;
     void filter_runtime_family();
 
     QVector<soa::runtime::WineInstall> runtimes;

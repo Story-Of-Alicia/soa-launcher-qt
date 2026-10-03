@@ -84,13 +84,16 @@ namespace soa::runtime
             return true;
 
         const bool proton = runtime_.runtime_is_proton();
-        const bool umu_winetricks =
-            proton && WineRegistry::proton_supports_umu_winetricks(runtime_.proton_root());
+        const WinetricksBackend backend = PrefixInspector::required_winetricks_backend(
+            Config::instance().prefix_root(),
+            proton ? RuntimeType::Proton : RuntimeType::Wine,
+            proton ? runtime_.proton_root() : runtime_.wine_binary(),
+            install_optional_dxvk);
         QString installer;
         QStringList package_arguments;
         QProcessEnvironment package_environment;
 
-        if (umu_winetricks)
+        if (backend == WinetricksBackend::Umu)
         {
             installer = umu_path();
             if (installer.isEmpty() || !QFileInfo(installer).isExecutable())
@@ -106,7 +109,7 @@ namespace soa::runtime
             SPDLOG_INFO("installing Proton components through umu-run winetricks: {}",
                         packages.join(QStringLiteral(", ")).toStdString());
         }
-        else
+        else if (backend == WinetricksBackend::Host)
         {
             installer = winetricks_path();
             if (installer.isEmpty() || !QFileInfo(installer).isExecutable())
@@ -150,6 +153,9 @@ namespace soa::runtime
             package_arguments.append(packages);
             package_environment = runtime_.winetricks_environment();
         }
+
+        if (backend == WinetricksBackend::None)
+            return true;
 
         int insertion_index = index_ + 1;
         if (!packages.isEmpty())
@@ -670,7 +676,7 @@ namespace soa::runtime
              runtime_.wine_binary(),
              {QStringLiteral("reg.exe"), QStringLiteral("add"), d3d_key, QStringLiteral("/v"),
               QStringLiteral("VideoMemorySize"), QStringLiteral("/t"), QStringLiteral("REG_SZ"),
-              QStringLiteral("/d"), QStringLiteral("2048"), QStringLiteral("/f")},
+              QStringLiteral("/d"), QStringLiteral("4096"), QStringLiteral("/f")},
              environment,
              k_registry_timeout_ms,
              false,

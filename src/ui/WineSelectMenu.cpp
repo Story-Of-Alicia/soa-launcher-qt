@@ -28,6 +28,7 @@
 #include "common/Log.hpp"
 #include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineRegistry.hpp"
+#include "runtime/PrefixInspector.hpp"
 #include "ui/Assets.hpp"
 #include "ui/Colors.hpp"
 #include "config/Config.hpp"
@@ -535,33 +536,7 @@ void WineSelectMenu::populate()
     lay->addStretch(1);
     list->setWidget(content);
 
-#if defined(Q_OS_MACOS)
-    const bool rosetta = cw::macos::rosetta_is_available();
-    const bool tricks = cw::winetricks_available();
-    runtime_status->setText(
-        soa::i18n::translate("winetricks: %1 · Rosetta: %2")
-            .arg(tricks ? soa::i18n::translate("ready")
-                        : soa::i18n::translate("not found"),
-                 rosetta ? soa::i18n::translate("ready")
-                         : soa::i18n::translate("not detected")));
-    if (rosetta_button) rosetta_button->setVisible(!rosetta);
-#else
-    const bool tricks = cw::winetricks_available();
-    if (proton_mode())
-    {
-        const bool umu = cw::umu_available();
-        runtime_status->setText(soa::i18n::translate("UMU: %1 · Winetricks: %2")
-            .arg(umu ? soa::i18n::translate("ready") : soa::i18n::translate("not found"),
-                 tricks ? soa::i18n::translate("ready") : soa::i18n::translate("not found")));
-    }
-    else
-    {
-        runtime_status->setText(tricks
-            ? soa::i18n::translate("winetricks: ready")
-            : soa::i18n::translate(
-                  "winetricks not found - required components will be installed manually"));
-    }
-#endif
+    update_runtime_status();
     relayout();
 }
 
@@ -691,11 +666,61 @@ void WineSelectMenu::request_rosetta()
 #endif
 }
 
+void WineSelectMenu::update_runtime_status()
+{
+#if defined(Q_OS_MACOS)
+    const bool rosetta = cw::macos::rosetta_is_available();
+    runtime_status->setText(soa::i18n::translate("Rosetta: %1")
+        .arg(rosetta ? soa::i18n::translate("ready")
+                     : soa::i18n::translate("not detected")));
+    if (rosetta_button) rosetta_button->setVisible(!rosetta);
+#else
+    const bool tricks = cw::winetricks_available();
+    if (proton_mode())
+    {
+        const bool umu = cw::umu_available();
+        if (selected >= 0 && selected < runtimes.size()
+            && host_winetricks_required(runtimes[selected]))
+        {
+            runtime_status->setText(soa::i18n::translate("UMU: %1 · Winetricks: %2")
+                .arg(umu ? soa::i18n::translate("ready") : soa::i18n::translate("not found"),
+                     tricks ? soa::i18n::translate("ready") : soa::i18n::translate("not found")));
+        }
+        else
+        {
+            runtime_status->setText(soa::i18n::translate("UMU: %1")
+                .arg(umu ? soa::i18n::translate("ready") : soa::i18n::translate("not found")));
+        }
+    }
+    else
+    {
+        runtime_status->setText(tricks
+            ? soa::i18n::translate("winetricks: ready")
+            : soa::i18n::translate("winetricks: not found"));
+    }
+#endif
+}
+
+bool WineSelectMenu::host_winetricks_required(const cw::WineInstall& runtime) const
+{
+    return cw::PrefixInspector::required_winetricks_backend(
+               Config::instance().prefix_root(), runtime.type, runtime.path,
+               false)
+        == cw::WinetricksBackend::Host;
+}
+
+bool WineSelectMenu::runtime_ready(const cw::WineInstall& runtime) const
+{
+    return runtime.usable && (!host_winetricks_required(runtime) || cw::winetricks_available());
+}
+
 void WineSelectMenu::select_row(const int index)
 {
     selected = index;
     for (int i = 0; i < rows.size(); ++i) rows[i]->setChecked(i == index);
-    continue_button->setEnabled(index >= 0 && index < runtimes.size() && runtimes[index].usable);
+    continue_button->setEnabled(index >= 0 && index < runtimes.size()
+                                && runtime_ready(runtimes[index]));
+    update_runtime_status();
 }
 
 void WineSelectMenu::retranslate_dynamic_text()
@@ -709,7 +734,7 @@ void WineSelectMenu::retranslate_dynamic_text()
 
 void WineSelectMenu::confirm()
 {
-    if (selected < 0 || selected >= runtimes.size() || !runtimes[selected].usable) return;
+    if (selected < 0 || selected >= runtimes.size() || !runtime_ready(runtimes[selected])) return;
     const cw::WineInstall& wi = runtimes[selected];
     auto& config = Config::instance();
     const bool had_proton_runtime = config.runtime_is_proton();

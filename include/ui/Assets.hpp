@@ -19,6 +19,8 @@ namespace soa::ui::assets
         BoxSettings,
         BoxUpdate,
         BoxWaitingForAuth,
+        Checkbox,
+        CheckboxTicked,
         CloseIcon,
         CloseNormal,
         CloseSettings,

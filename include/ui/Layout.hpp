@@ -274,7 +274,7 @@ namespace soa::ui::layout
         inline constexpr int   k_text_w    = 290;
         inline constexpr int   k_ctrl_x    = 366;
         inline constexpr int   k_ctrl_w    = 227;
-        inline constexpr int   k_desc_dy   = 30;
+        inline constexpr int   k_desc_dy   = 24;
         inline constexpr int   k_desc_h    = 46;
         inline constexpr int   k_title_h   = 28;
 

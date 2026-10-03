@@ -150,7 +150,14 @@ namespace soa::ui::simple_utils
                 return;
 
             QFont font = label->font();
-            const int base_size = label->property(k_base_pixel_size_property).toInt();
+            int base_size = label->property(k_base_pixel_size_property).toInt();
+            if (assets::translated_button_assets_active())
+            {
+                const int translated_size = qMin(
+                    layout::scaled(18, label->window()->size()),
+                    qMax(1, label->height() * 45 / 100));
+                base_size = qMax(base_size, translated_size);
+            }
             const int maximum_width = qMax(1, label->width() - layout::scaled(12, label->window()->size()));
             const int minimum_pixel_size = qMax(8, layout::scaled(9, label->window()->size()));
             int pixel_size = qMax(minimum_pixel_size, base_size);

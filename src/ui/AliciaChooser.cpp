@@ -443,7 +443,7 @@ void AliciaChooser::setup_waiting_state()
 {
     const QSize w = window()->size();
 
-    waiting_title = new QLabel("WAITING FOR BROWSER AUTHENTICATION", this);
+    waiting_title = new QLabel(this);
     waiting_title->setAlignment(Qt::AlignCenter);
     waiting_title->setTextFormat(Qt::PlainText);
     QFont wf = soa::ui::assets::fonts[soa::ui::assets::Font::EurostileBlack];
@@ -456,21 +456,12 @@ void AliciaChooser::setup_waiting_state()
     steps_label = new QLabel(this);
     steps_label->setWordWrap(true);
     steps_label->setTextFormat(Qt::RichText);
-    steps_label->setText(
-        QStringLiteral("<b>1.</b>&nbsp; %1<br><b>2.</b>&nbsp; %2<br>"
-                       "<b>3.</b>&nbsp; %3<br><b>4.</b>&nbsp; %4")
-            .arg(soa::i18n::translate("Open the exact copied sign-in link in the browser you want to use."),
-                 soa::i18n::translate("Sign in with Discord and authorize the launcher."),
-                 soa::i18n::translate("Click %1 when prompted.")
-                     .arg(QStringLiteral("<b>“Open Story of Alicia Launcher”</b>")),
-                 soa::i18n::translate("If login did not work, cancel and try again.")));
     steps_label->setStyleSheet(note_box_style(w));
     steps_label->setGeometry(soa::ui::layout::alicia_chooser::steps(w));
     add_soft_shadow(steps_label, 18.0, 6.0, QColor(64, 40, 27, 62));
 
-    try_again_button = new QPushButton(QStringLiteral("Cancel / Try again"), this);
+    try_again_button = new QPushButton(this);
     try_again_button->setCursor(Qt::PointingHandCursor);
-    try_again_button->setAccessibleName(QStringLiteral("Cancel Discord login and try again"));
     try_again_button->setGeometry(soa::ui::layout::alicia_chooser::try_again(w));
     QFont retry_font = soa::ui::assets::fonts[soa::ui::assets::Font::Inter];
     retry_font.setPixelSize(qMax(8, soa::ui::layout::scaled(11, w)));
@@ -480,6 +471,27 @@ void AliciaChooser::setup_waiting_state()
     try_again_button->setStyleSheet(
         "QPushButton { background: transparent; border: none; color: #988776; }"
         "QPushButton:hover { color: #6F5F50; }");
+
+    const auto refresh_waiting_text = [this]()
+    {
+        waiting_title->setText(soa::i18n::translate("WAITING FOR BROWSER AUTHENTICATION"));
+        steps_label->setText(
+            QStringLiteral("<b>1.</b>&nbsp; %1<br><b>2.</b>&nbsp; %2<br>"
+                           "<b>3.</b>&nbsp; %3<br><b>4.</b>&nbsp; %4")
+                .arg(soa::i18n::translate("Open the exact copied sign-in link in the browser you want to use."),
+                     soa::i18n::translate("Sign in with Discord and authorize the launcher."),
+                     soa::i18n::translate("Click %1 when prompted.")
+                         .arg(QStringLiteral("<b>“Open Story of Alicia Launcher”</b>")),
+                     soa::i18n::translate("If login did not work, cancel and try again.")));
+        try_again_button->setText(soa::i18n::translate("Cancel / Try again"));
+        try_again_button->setAccessibleName(
+            soa::i18n::translate("Cancel Discord login and try again"));
+    };
+
+    refresh_waiting_text();
+    connect(&soa::i18n::LanguageManager::instance(),
+            &soa::i18n::LanguageManager::language_changed,
+            this, [refresh_waiting_text](const QString&) { refresh_waiting_text(); });
     connect(try_again_button, &QPushButton::clicked, auth, &AuthHandler::cancel_login);
 }
 

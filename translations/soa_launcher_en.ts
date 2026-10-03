@@ -901,6 +901,11 @@ Missing: %1. %2, then restart the launcher.</source>
             <source>You can still choose a different Wine installation manually.</source>
             <translation type="unfinished" />
         </message>
+        <message>
+            <location filename="../src/ui/PrerequisitesIntro.cpp" />
+            <source>Missing: %1. %2, then restart the launcher.</source>
+            <translation type="unfinished" />
+        </message>
     </context>
     <context>
         <name>Game Installation &amp; Repair</name>
@@ -2844,6 +2849,57 @@ See launcher.log for the complete command output.</source>
         <message>
             <location filename="../src/ui/WineSelectMenu.cpp" line="387" />
             <source>Latest stable UMU-Proton</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSelectMenu.cpp" />
+            <source>Rosetta: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSelectMenu.cpp" />
+            <source>UMU: %1</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/ui/WineSelectMenu.cpp" />
+            <source>winetricks: not found</source>
+            <translation type="unfinished" />
+        </message>
+            <message>
+            <source>Choose how to run the game</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>PROTON RECOMMENDED</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>UMU / Proton is the default and recommended option. You don't need Wine or Winetricks installed system-wide. The launcher can install and manage Proton through UMU.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>RECOMMENDED</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>USE PROTON</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Use Proton</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>USE WINE</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Use Wine</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <source>Proton is recommended even if Wine and Winetricks are already installed.</source>
             <translation type="unfinished" />
         </message>
 </context>

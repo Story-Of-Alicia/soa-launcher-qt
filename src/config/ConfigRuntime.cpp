@@ -52,10 +52,10 @@ namespace soa::config
     {
         const QString value = d->values.value(QStringLiteral("setup_runtime_preference")).toString().toLower();
 #if defined(Q_OS_MACOS)
-        return value == QStringLiteral("wine") ? value : QStringLiteral("recommended");
+        return value == QStringLiteral("wine") ? value : QStringLiteral("wine");
 #else
         return value == QStringLiteral("wine") || value == QStringLiteral("proton")
-            ? value : QStringLiteral("recommended");
+            ? value : QStringLiteral("proton");
 #endif
     }
 
@@ -304,10 +304,10 @@ namespace soa::config
     {
 #if defined(Q_OS_MACOS)
         const QString normalized = value == QStringLiteral("wine")
-            ? value : QStringLiteral("recommended");
+            ? value : QStringLiteral("wine");
 #else
         const QString normalized = value == QStringLiteral("wine") || value == QStringLiteral("proton")
-            ? value : QStringLiteral("recommended");
+            ? value : QStringLiteral("proton");
 #endif
         if (setup_runtime_preference() == normalized)
             return;

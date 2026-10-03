@@ -44,6 +44,7 @@ class PrerequisitesIntro : public soa::ui::ModalOverlay
         [[nodiscard]] soa::runtime::RuntimeType recommended_runtime() const;
         [[nodiscard]] const soa::runtime::WineInstall* best_runtime(soa::runtime::RuntimeType type) const;
         [[nodiscard]] QStringList missing_requirements(soa::runtime::RuntimeType type) const;
+        [[nodiscard]] bool host_winetricks_required(soa::runtime::RuntimeType type) const;
         [[nodiscard]] bool profile_ready(QString* blocker = nullptr) const;
 
         QFutureWatcher<DetectionResult>* detector {};

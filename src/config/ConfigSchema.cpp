@@ -96,7 +96,7 @@ namespace soa::config
 #else
         d->values[QStringLiteral("setup_runtime_preference")] =
             preference == QStringLiteral("wine") || preference == QStringLiteral("proton")
-                ? preference : QStringLiteral("recommended");
+                ? preference : QStringLiteral("proton");
 #endif
     }
 
@@ -194,7 +194,11 @@ namespace soa::config
         setIfMissing(QStringLiteral("rosetta_x87_path"), QString());
         setIfMissing(QStringLiteral("prerequisites_confirmed"), false);
         setIfMissing(QStringLiteral("setup_assistant_version"), 0);
-        setIfMissing(QStringLiteral("setup_runtime_preference"), QStringLiteral("recommended"));
+#if defined(Q_OS_MACOS)
+        setIfMissing(QStringLiteral("setup_runtime_preference"), QStringLiteral("wine"));
+#else
+        setIfMissing(QStringLiteral("setup_runtime_preference"), QStringLiteral("proton"));
+#endif
         setIfMissing(QStringLiteral("rules_accepted"), false);
         setIfMissing(QStringLiteral("keep_signed_in"), false);
         setIfMissing(QStringLiteral("launch_on_startup"), false);
