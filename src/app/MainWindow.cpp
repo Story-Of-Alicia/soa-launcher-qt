@@ -14,12 +14,11 @@
 #include "ui/LauncherInfoDialog.hpp"
 #include "ui/LauncherLog.hpp"
 #include "i18n/LanguageManager.hpp"
+#include "runtime/GameIntegrityWatcher.hpp"
+#include "ui/LanguageSelection.hpp"
 
 #include <QDialog>
 #include <QTimer>
-
-#include "runtime/GameIntegrityWatcher.hpp"
-#include "ui/LanguageSelection.hpp"
 
 using soa::common::game::GameVersion;
 using soa::ui::Stage;
@@ -73,8 +72,11 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::on_stage_changed);
     connect(install_state, &soa::ui::InstallState::stage_changed,
             this, [this]() { refresh_tray_actions(); });
-    connect(&Config::instance(), &Config::changed,
-            this, [this]() { refresh_tray_actions(); });
+    connect(&Config::instance(), &Config::changed, this, [this]()
+    {
+        refresh_tray_actions();
+        mark_setup_complete_if_ready();
+    });
     connect(install_state, &soa::ui::InstallState::error_changed, this,
             [this](const QString& message)
     {

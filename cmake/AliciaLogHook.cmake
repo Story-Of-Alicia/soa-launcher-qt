@@ -13,6 +13,12 @@ find_program(SOA_MINGW_C_COMPILER NAMES i686-w64-mingw32-gcc)
 find_program(SOA_MINGW_CXX_COMPILER NAMES i686-w64-mingw32-g++)
 
 if(SOA_MINGW_C_COMPILER AND SOA_MINGW_CXX_COMPILER)
+    file(GLOB_RECURSE SOA_ALICIA_LOG_HOOK_INPUTS CONFIGURE_DEPENDS
+            "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/src/*"
+            "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/minhook/include/*"
+            "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/minhook/src/*"
+    )
+
     find_program(SOA_ALICIA_LOG_HOOK_BASH bash)
     if(NOT SOA_ALICIA_LOG_HOOK_BASH)
         set(SOA_ALICIA_LOG_HOOK_BASH "/bin/bash")
@@ -29,6 +35,7 @@ if(SOA_MINGW_C_COMPILER AND SOA_MINGW_CXX_COMPILER)
             "${SOA_MINGW_C_COMPILER}"
             "${SOA_MINGW_CXX_COMPILER}"
             DEPENDS
+            ${SOA_ALICIA_LOG_HOOK_INPUTS}
             "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/build-x86.sh"
             COMMENT "Building the Windows x86 Alicia injector and compatibility hook"
             VERBATIM
@@ -57,6 +64,9 @@ if(SOA_MINGW_C_COMPILER AND SOA_MINGW_CXX_COMPILER)
     )
 
     set(SOA_ALICIA_LOG_HOOK_AVAILABLE ON)
+    message(STATUS
+            "Alicia log hook enabled: ${SOA_ALICIA_LOG_HOOK_OUTPUT_DIR}"
+    )
 else()
     set(SOA_ALICIA_LOG_HOOK_AVAILABLE OFF)
 

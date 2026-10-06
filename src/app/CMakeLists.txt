@@ -14,6 +14,10 @@ qt_add_executable(soa_launcher
         ${SOA_ROOT_DIR}/resources.qrc
 )
 
+if(TARGET soa_alicia_log_hook)
+    add_dependencies(soa_launcher soa_alicia_log_hook)
+endif()
+
 target_include_directories(soa_launcher
         PRIVATE
         ${SOA_INCLUDE_DIR}

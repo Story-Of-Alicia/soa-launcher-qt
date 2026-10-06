@@ -99,6 +99,7 @@ namespace soa::config
                       const QString& display_name = {});
         void clear_auth();
         bool reset_launcher_config();
+        bool mark_setup_complete();
 
         QString file_path() const;
         QString env_path() const;
@@ -134,6 +135,9 @@ namespace soa::config
         bool restore_from_backup();
         bool write_backup(const QByteArray& contents) const;
         QString backup_path() const;
+        QString recovery_marker_path() const;
+        bool recovery_marker_exists() const;
+        bool write_recovery_marker() const;
         void load_credentials();
         bool save_credentials();
         bool clear_saved_credentials();

@@ -302,29 +302,67 @@ void MainWindow::setup_alicia_chooser()
 
     connect(alicia_chooser, &AliciaChooser::reset_config_requested, this, [this]()
     {
-        const char* preservedData =
-            "The Wine prefix and both game installations will not be deleted.";
         const bool confirmed = LauncherDialog::confirm(
             this,
             LauncherDialog::Tone::Warning,
-            QStringLiteral("Reset Launcher Config"),
+            QStringLiteral("Factory Reset Launcher"),
             soa::i18n::translate(
-                "This resets launcher settings, the setup/rules confirmations, and signs you out.\n\n")
-                + soa::i18n::translate(preservedData),
-            QStringLiteral("Reset Launcher"),
+                "This deletes all Story of Alicia data managed by the launcher, including settings, sign-in, Wine/Proton prefixes, installed game files, managed runtimes, logs, and cached state.\n\nSetup will start over from language selection. This cannot be undone."),
+            QStringLiteral("Factory Reset"),
             QStringLiteral("Cancel"),
             true);
 
         if (!confirmed) return;
 
+        if (auth)
+            auth->cancel_login();
+        if (integrity_watcher)
+            integrity_watcher->set_suspended(true);
+
+        close_overlay(settings);
+        close_overlay(prerequisites_intro);
+        close_overlay(rules_agreement);
+        close_overlay(wine_select);
+        close_overlay(wine_install);
+        close_overlay(game_install);
+        close_overlay(update_progress);
+        close_overlay(repair_progress);
+
         install_state->clear_rules_reviewed();
-        Config::instance().reset_launcher_config();
-        game_version = Config::instance().game_version();
+        pending_integrity_repairs.clear();
+        repair_active = false;
+        launch_after_preflight_check = false;
+
+        auto& config = Config::instance();
+        const bool reset_complete = config.reset_launcher_config();
+        if (!reset_complete && config.language_selected())
+        {
+            if (integrity_watcher)
+                integrity_watcher->set_suspended(false);
+            LauncherDialog::warning(
+                this,
+                QStringLiteral("Factory Reset Incomplete"),
+                soa::i18n::translate(
+                    "The factory reset could not start. Nothing was deleted. Check the launcher log for details."));
+            return;
+        }
+
+        game_version = config.game_version();
         alicia_chooser->set_game_version(game_version);
         game_install->refresh_game_path();
         refresh_game_selector();
+        last_view = View::Loading;
         install_state->probe();
         update();
+
+        if (!reset_complete)
+        {
+            LauncherDialog::warning(
+                this,
+                QStringLiteral("Factory Reset Incomplete"),
+                soa::i18n::translate(
+                    "The launcher reset its current session, but some saved data could not be removed. Check the launcher log for details."));
+        }
     });
 }
 

@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QUrl>
 
 namespace
@@ -81,6 +82,7 @@ void LanguageSelection::setup_controls()
     {
         if (languages[index].code == current)
         {
+            const QSignalBlocker blocker(language_dropdown);
             language_dropdown->set_index(index);
             break;
         }
@@ -135,6 +137,19 @@ void LanguageSelection::setup_controls()
 
 void LanguageSelection::retranslate()
 {
+    const auto& manager = soa::i18n::LanguageManager::instance();
+    const auto languages = manager.languages();
+    const QString current = manager.current_language();
+    for (int index = 0; index < languages.size(); ++index)
+    {
+        if (languages[index].code == current)
+        {
+            const QSignalBlocker blocker(language_dropdown);
+            language_dropdown->set_index(index);
+            break;
+        }
+    }
+
     title_label->setText(soa::i18n::translate("CHOOSE YOUR LANGUAGE"));
     message_label->setText(soa::i18n::translate(
         "Choose the language you want to use in the launcher."));

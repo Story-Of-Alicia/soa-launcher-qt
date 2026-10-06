@@ -191,12 +191,12 @@
         </message>
         <message>
             <location filename="../src/app/MainWindowSetup.cpp" line="266" />
-            <source>Reset Launcher</source>
+            <source>Factory Reset</source>
             <translation type="unfinished" />
         </message>
         <message>
             <location filename="../src/app/MainWindowSetup.cpp" line="262" />
-            <source>Reset Launcher Config</source>
+            <source>Factory Reset Launcher</source>
             <translation type="unfinished" />
         </message>
         <message>
@@ -273,14 +273,24 @@ Your on-screen change is active only for this session.</source>
         </message>
         <message>
             <location filename="../src/app/MainWindowSetup.cpp" line="258" />
-            <source>The Wine prefix and both game installations will not be deleted.</source>
+            <source>This deletes all Story of Alicia data managed by the launcher, including settings, sign-in, Wine/Proton prefixes, installed game files, managed runtimes, logs, and cached state.
+
+Setup will start over from language selection. This cannot be undone.</source>
             <translation type="unfinished" />
         </message>
         <message>
-            <location filename="../src/app/MainWindowSetup.cpp" line="264" />
-            <source>This resets launcher settings, the setup/rules confirmations, and signs you out.
-
-</source>
+            <location filename="../src/app/MainWindowSetup.cpp" line="344" />
+            <source>Factory Reset Incomplete</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/app/MainWindowSetup.cpp" line="346" />
+            <source>The factory reset could not start. Nothing was deleted. Check the launcher log for details.</source>
+            <translation type="unfinished" />
+        </message>
+        <message>
+            <location filename="../src/app/MainWindowSetup.cpp" line="364" />
+            <source>The launcher reset its current session, but some saved data could not be removed. Check the launcher log for details.</source>
             <translation type="unfinished" />
         </message>
         <message>
@@ -467,7 +477,7 @@ Your on-screen change is active only for this session.</source>
         <message>
             <location filename="../src/ui/AliciaChooser.cpp" line="656" />
             <location filename="../src/ui/AliciaChooser.cpp" line="805" />
-            <source>Launcher settings cannot be reset while Alicia is active</source>
+            <source>Factory reset is unavailable while Alicia is active</source>
             <translation type="unfinished" />
         </message>
         <message>
@@ -530,20 +540,20 @@ Your on-screen change is active only for this session.</source>
         <message>
             <location filename="../src/ui/AliciaChooser.cpp" line="178" />
             <location filename="../src/ui/AliciaChooser.cpp" line="800" />
-            <source>RESET LAUNCHER SETTINGS</source>
+            <source>FACTORY RESET LAUNCHER</source>
             <translation type="unfinished" />
         </message>
         <message>
             <location filename="../src/ui/AliciaChooser.cpp" line="180" />
             <location filename="../src/ui/AliciaChooser.cpp" line="801" />
-            <source>Reset launcher settings</source>
+            <source>Factory reset launcher</source>
             <translation type="unfinished" />
         </message>
         <message>
             <location filename="../src/ui/AliciaChooser.cpp" line="183" />
             <location filename="../src/ui/AliciaChooser.cpp" line="655" />
             <location filename="../src/ui/AliciaChooser.cpp" line="804" />
-            <source>Reset launcher settings and sign-in without deleting the shared prefix or either game</source>
+            <source>Delete all launcher-managed Story of Alicia data and start setup over</source>
             <translation type="unfinished" />
         </message>
         <message>

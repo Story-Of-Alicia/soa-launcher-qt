@@ -176,12 +176,12 @@ AliciaChooser::AliciaChooser(AuthHandler* auth_, soa::runtime::Shell* shell_,
         });
     });
 
-    reset_path_button = new QPushButton("RESET LAUNCHER SETTINGS", this);
+    reset_path_button = new QPushButton("FACTORY RESET LAUNCHER", this);
     reset_path_button->setCursor(Qt::PointingHandCursor);
-    reset_path_button->setAccessibleName(QStringLiteral("Reset launcher settings"));
+    reset_path_button->setAccessibleName(QStringLiteral("Factory reset launcher"));
     reset_path_button->setStyleSheet(reset_link_style(w));
     reset_path_button->setGeometry(soa::ui::layout::alicia_chooser::reset(w));
-    reset_path_button->setToolTip(soa::i18n::translate("Reset launcher settings and sign-in without deleting the shared prefix or either game"));
+    reset_path_button->setToolTip(soa::i18n::translate("Delete all launcher-managed Story of Alicia data and start setup over"));
     connect(reset_path_button, &QPushButton::clicked, this, [this]()
     {
         emit reset_config_requested();
@@ -673,8 +673,8 @@ void AliciaChooser::apply_state_visibility()
     reset_path_button->setEnabled(!game_active);
     reset_path_button->setToolTip(reset_path_button->isEnabled()
         ? soa::i18n::translate(
-              "Reset launcher settings and sign-in without deleting the shared prefix or either game")
-        : soa::i18n::translate("Launcher settings cannot be reset while Alicia is active"));
+              "Delete all launcher-managed Story of Alicia data and start setup over")
+        : soa::i18n::translate("Factory reset is unavailable while Alicia is active"));
 
     sign_out_button->setEnabled(!game_active);
     sign_out_button->setCursor(game_active ? Qt::ArrowCursor : Qt::PointingHandCursor);
@@ -814,12 +814,12 @@ void AliciaChooser::retranslate_dynamic_text()
 {
     if (reset_path_button)
     {
-        reset_path_button->setText(soa::i18n::translate("RESET LAUNCHER SETTINGS"));
-        reset_path_button->setAccessibleName(soa::i18n::translate("Reset launcher settings"));
+        reset_path_button->setText(soa::i18n::translate("FACTORY RESET LAUNCHER"));
+        reset_path_button->setAccessibleName(soa::i18n::translate("Factory reset launcher"));
         reset_path_button->setToolTip(reset_path_button->isEnabled()
             ? soa::i18n::translate(
-                  "Reset launcher settings and sign-in without deleting the shared prefix or either game")
-            : soa::i18n::translate("Launcher settings cannot be reset while Alicia is active"));
+                  "Delete all launcher-managed Story of Alicia data and start setup over")
+            : soa::i18n::translate("Factory reset is unavailable while Alicia is active"));
     }
     if (download_button)
     {

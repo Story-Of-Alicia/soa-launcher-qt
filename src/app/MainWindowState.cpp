@@ -17,11 +17,10 @@
 #include "ui/ModalOverlay.hpp"
 #include "ui/Settings.hpp"
 #include "ui/WineInstall.hpp"
+#include "ui/LanguageSelection.hpp"
 
 #include <QIcon>
 #include <QPushButton>
-
-#include "ui/LanguageSelection.hpp"
 
 using soa::common::game::GameVersion;
 using soa::ui::Stage;
@@ -31,6 +30,16 @@ using soa::config::Config;
 #ifndef SOA_LAUNCHER_VERSION
 #define SOA_LAUNCHER_VERSION "0.3.0"
 #endif
+
+
+void MainWindow::mark_setup_complete_if_ready()
+{
+    if (!install_state || install_state->stage() != Stage::Ready)
+        return;
+    auto& config = Config::instance();
+    if (config.rules_accepted())
+        (void)config.mark_setup_complete();
+}
 
 void MainWindow::continue_after_launcher_update_check()
 {
@@ -139,6 +148,7 @@ void MainWindow::open_for_current_stage()
 void MainWindow::on_stage_changed(const Stage stage)
 {
     set_game_switching_enabled(stage);
+    mark_setup_complete_if_ready();
 
     if (integrity_watcher)
     {
@@ -309,6 +319,9 @@ void MainWindow::on_overlay_closed(soa::ui::ModalOverlay*)
 
 void MainWindow::open_overlay(soa::ui::ModalOverlay* overlay)
 {
+    if (!overlay)
+        return;
+
     if (overlay->isHidden())
     {
         overlay->show_over(this);
@@ -320,6 +333,9 @@ void MainWindow::open_overlay(soa::ui::ModalOverlay* overlay)
 
 void MainWindow::close_overlay(soa::ui::ModalOverlay* overlay)
 {
+    if (!overlay)
+        return;
+
     if (!overlay->isHidden())
     {
         overlay->hide();

@@ -10,11 +10,16 @@ namespace soa::config
 
     Config::Config(QObject* parent) : QObject(parent), d(new Impl)
     {
+        const bool primary_config_exists = QFileInfo::exists(file_path());
+        const bool recovery_enabled = recovery_marker_exists();
         const QString directory = QFileInfo(file_path()).absolutePath();
-        if (!QDir().mkpath(directory))
+        if ((primary_config_exists || recovery_enabled)
+            && !QFileInfo(directory).isDir() && !QDir().mkpath(directory))
+        {
             SPDLOG_ERROR("config: could not create config directory {}", directory.toStdString());
+        }
 
-        (void)load();
+        const bool loaded_from_disk = load();
         apply_defaults();
         normalize_schema();
         if (keep_signed_in())
@@ -29,7 +34,8 @@ namespace soa::config
             if (!clear_saved_credentials())
                 SPDLOG_WARN("config: could not fully clear non-persistent credentials at startup");
         }
-        save();
+        if ((primary_config_exists && loaded_from_disk) || recovery_enabled)
+            (void)save();
 
         watcher = new QFileSystemWatcher(this);
         reload_timer = new QTimer(this);
@@ -52,6 +58,11 @@ namespace soa::config
             if (writing || reloading)
                 return;
             if (QFileInfo::exists(file_path()))
+            {
+                integrity_timer->setInterval(k_integrity_interval_ms);
+                return;
+            }
+            if (!recovery_marker_exists())
             {
                 integrity_timer->setInterval(k_integrity_interval_ms);
                 return;

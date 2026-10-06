@@ -1,4 +1,10 @@
 #include "ConfigPrivate.hpp"
+#include "common/AppPaths.hpp"
+
+#if defined(Q_OS_MACOS)
+#include <QProcess>
+#include <unistd.h>
+#endif
 
 namespace soa::config
 {
@@ -24,16 +30,49 @@ namespace soa::config
 #endif
     }
 
+    QString Config::recovery_marker_path() const
+    {
+        QString root = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        if (root.isEmpty())
+            root = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+        if (root.isEmpty())
+            root = QDir::homePath();
+        return QDir(root).filePath(QStringLiteral(".recreate-config"));
+    }
+
+    bool Config::recovery_marker_exists() const
+    {
+        return QFileInfo(recovery_marker_path()).isFile();
+    }
+
+    bool Config::write_recovery_marker() const
+    {
+        const QString marker = recovery_marker_path();
+        const QString directory = QFileInfo(marker).absolutePath();
+        if (!QFileInfo(directory).isDir() && !QDir().mkpath(directory))
+        {
+            SPDLOG_WARN("config: could not create recovery marker directory {}",
+                        directory.toStdString());
+            return false;
+        }
+
+        QSaveFile file(marker);
+        if (!file.open(QIODevice::WriteOnly)
+            || file.write(QByteArrayLiteral("ready\n")) < 0 || !file.commit())
+        {
+            SPDLOG_WARN("config: could not create setup recovery marker {}",
+                        marker.toStdString());
+            return false;
+        }
+        return true;
+    }
+
     void Config::watch_files()
     {
         if (!watcher)
             return;
 
         const QString directory = QFileInfo(file_path()).absolutePath();
-
-
-        if (!QFileInfo(directory).isDir())
-            QDir().mkpath(directory);
         if (QFileInfo(directory).isDir() && !watcher->directories().contains(directory))
             watcher->addPath(directory);
 
@@ -128,7 +167,7 @@ namespace soa::config
             return true;
 
         case LoadOutcome::Missing:
-            if (restore_from_backup())
+            if (recovery_marker_exists() && restore_from_backup())
             {
                 SPDLOG_WARN("config: config.json was missing at startup; recovered from {}",
                             backup_path().toStdString());
@@ -138,12 +177,13 @@ namespace soa::config
             return true;
 
         case LoadOutcome::Unreadable:
-            if (restore_from_backup())
+            if (recovery_marker_exists() && restore_from_backup())
             {
                 SPDLOG_WARN("config: config.json was unreadable at startup; recovered from {}",
                             backup_path().toStdString());
                 return true;
             }
+            d->values.clear();
             return false;
         }
         return false;
@@ -292,17 +332,29 @@ namespace soa::config
                     reload_timer->start();
                 return;
             }
+            if (!recovery_marker_exists())
+            {
+                consecutive_unreadable = 0;
+                reloading = false;
+                remember_disk_state();
+                SPDLOG_WARN("config: config.json stayed unreadable while automatic recovery is disabled");
+                return;
+            }
             SPDLOG_ERROR("config: config.json stayed unreadable; rewriting it from the "
                          "running configuration");
             recovered = true;
         }
         else if (outcome == LoadOutcome::Missing)
         {
-
-
-
-
             d->values = previousValues;
+            if (!recovery_marker_exists())
+            {
+                consecutive_unreadable = 0;
+                reloading = false;
+                remember_disk_state();
+                SPDLOG_INFO("config: config.json is absent while automatic recovery is disabled");
+                return;
+            }
             SPDLOG_WARN("config: config.json disappeared while running; rewriting it from the "
                         "running configuration");
             recovered = true;
@@ -385,32 +437,156 @@ namespace soa::config
         return d->persistence_error;
     }
 
-    bool Config::reset_launcher_config()
+    bool Config::mark_setup_complete()
     {
-        writing = true;
-        if (watcher)
+        if (!language_selected() || !prerequisites_confirmed()
+            || !runtime_selected() || !rules_accepted() || !QFileInfo(file_path()).isFile())
         {
-            watcher->removePath(file_path());
-            watcher->removePath(env_path());
+            return false;
         }
 
-        const bool configRemoved = !QFileInfo::exists(file_path()) || QFile::remove(file_path());
+        if (recovery_marker_exists())
+            return true;
 
+        if (!write_recovery_marker())
+            return false;
 
-        if (QFileInfo::exists(backup_path()))
-            (void)QFile::remove(backup_path());
-        d->values.clear();
+        SPDLOG_DEBUG("config: setup recovery marker created");
+        return true;
+    }
+
+    bool Config::reset_launcher_config()
+    {
+        const QString marker = recovery_marker_path();
+        const bool had_recovery_marker = QFileInfo::exists(marker);
+        if (had_recovery_marker && !QFile::remove(marker))
+        {
+            SPDLOG_ERROR("config: could not remove setup recovery marker {}", marker.toStdString());
+            return false;
+        }
+
+        writing = true;
+        reloading = false;
+        recovering = false;
+        update_depth = 0;
+        update_dirty = false;
+        consecutive_unreadable = 0;
+
+        if (reload_timer)
+            reload_timer->stop();
+        if (integrity_timer)
+            integrity_timer->stop();
+        if (watcher)
+        {
+            const QStringList files = watcher->files();
+            if (!files.isEmpty())
+                watcher->removePaths(files);
+            const QStringList directories = watcher->directories();
+            if (!directories.isEmpty())
+                watcher->removePaths(directories);
+        }
+
+        if (QFileInfo::exists(file_path()) && !QFile::remove(file_path()))
+        {
+            writing = false;
+            if (had_recovery_marker && !write_recovery_marker())
+                SPDLOG_ERROR("config: could not restore setup recovery marker after reset failure");
+            watch_files();
+            if (integrity_timer)
+            {
+                integrity_timer->setInterval(k_integrity_interval_ms);
+                integrity_timer->start();
+            }
+            SPDLOG_ERROR("config: factory reset could not remove {}", file_path().toStdString());
+            return false;
+        }
+
         d->username.clear();
         d->token.clear();
         d->display_name.clear();
-        const bool credentialsCleared = save_credentials();
+
+        const bool credential_store_cleared = !soa::credentials::CredentialStore::available()
+            || soa::credentials::CredentialStore::clear();
+        const bool fallback_cleared = !QFileInfo::exists(env_path()) || QFile::remove(env_path());
+
+        bool startup_entry_removed = true;
+#if defined(Q_OS_LINUX)
+        const QString config_root =
+            QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+        if (!config_root.isEmpty())
+        {
+            const QString startup_path = QDir(config_root).filePath(
+                QStringLiteral("autostart/soa-launcher.desktop"));
+            startup_entry_removed = !QFileInfo::exists(startup_path)
+                || QFile::remove(startup_path);
+        }
+#elif defined(Q_OS_MACOS)
+        const QString startup_path = QDir::home().filePath(
+            QStringLiteral("Library/LaunchAgents/com.storyofalicia.launcher.plist"));
+        if (QFileInfo::exists(startup_path))
+        {
+            const QString domain = QStringLiteral("gui/%1").arg(static_cast<qulonglong>(getuid()));
+            (void)QProcess::execute(QStringLiteral("/bin/launchctl"),
+                                    {QStringLiteral("bootout"), domain, startup_path});
+            startup_entry_removed = QFile::remove(startup_path);
+        }
+#endif
+
+        const QString data_root = soa::common::paths::application_support_root();
+        bool data_removed = true;
+        if (!data_root.isEmpty() && QDir(data_root).exists())
+            data_removed = QDir(data_root).removeRecursively();
+
+        const QString qt_data_root =
+            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        bool qt_data_removed = true;
+        if (!qt_data_root.isEmpty()
+            && QDir::cleanPath(qt_data_root) != QDir::cleanPath(data_root)
+            && QDir(qt_data_root).exists())
+        {
+            qt_data_removed = QDir(qt_data_root).removeRecursively();
+        }
+
+        const QString cache_root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        bool cache_removed = true;
+        if (!cache_root.isEmpty()
+            && QDir::cleanPath(cache_root) != QDir::cleanPath(data_root)
+            && QDir(cache_root).exists())
+        {
+            cache_removed = QDir(cache_root).removeRecursively();
+        }
+
+        d->values.clear();
+        d->persistence_error.clear();
         apply_defaults();
         normalize_schema();
+        config_digest = QByteArrayLiteral("<missing>");
+        env_digest = QByteArrayLiteral("<missing>");
+
         writing = false;
-        const bool saved = save();
-        watch_files();
+        if (integrity_timer)
+        {
+            integrity_timer->setInterval(k_integrity_interval_ms);
+            integrity_timer->start();
+        }
+
         emit changed();
-        return configRemoved && credentialsCleared && saved;
+
+        if (!credential_store_cleared)
+            SPDLOG_ERROR("config: factory reset could not fully clear saved credentials");
+        if (!fallback_cleared)
+            SPDLOG_ERROR("config: factory reset could not remove the credential fallback");
+        if (!startup_entry_removed)
+            SPDLOG_ERROR("config: factory reset could not remove the launch-on-startup entry");
+        if (!data_removed)
+            SPDLOG_ERROR("config: factory reset could not fully remove {}", data_root.toStdString());
+        if (!qt_data_removed)
+            SPDLOG_ERROR("config: factory reset could not fully remove {}", qt_data_root.toStdString());
+        if (!cache_removed)
+            SPDLOG_ERROR("config: factory reset could not fully remove {}", cache_root.toStdString());
+
+        return credential_store_cleared && fallback_cleared && startup_entry_removed
+            && data_removed && qt_data_removed && cache_removed;
     }
 
 }

@@ -112,6 +112,7 @@ private:
     void request_quit();
     void retranslate_dynamic_text();
     void begin_initial_state();
+    void mark_setup_complete_if_ready();
     [[nodiscard]] bool can_run_game_directly() const;
 
     bool chrome_hidden {};
