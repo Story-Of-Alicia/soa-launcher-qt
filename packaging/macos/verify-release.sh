@@ -191,7 +191,20 @@ while IFS= read -r -d '' item; do
         BAD_DEPENDENCIES=1
         ;;
     esac
-  done < <(otool -L "$item" | tail -n +2 | awk '{print $1}')
+  done < <(otool -L "$item" | awk 'NR > 1 && /^[[:space:]]/ { print $1 }')
+
+  while IFS= read -r rpath; do
+    case "$rpath" in
+      ""|@loader_path/*|@executable_path/*|@rpath/*|/System/Library/*|/usr/lib/*) ;;
+      *)
+        printf 'Non-portable runtime search path:\n  %s\n  -> %s\n' "$item" "$rpath" >&2
+        BAD_DEPENDENCIES=1
+        ;;
+    esac
+  done < <(otool -l "$item" | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { awaiting_path = 1; next }
+    awaiting_path && $1 == "path" { print $2; awaiting_path = 0 }
+  ')
 done < <(find "$APP/Contents" -type f -print0)
 if [ "$BAD_DEPENDENCIES" -ne 0 ]; then
   exit 1

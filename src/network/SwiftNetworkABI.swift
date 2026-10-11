@@ -13,7 +13,7 @@ private func soaSealKeyID(_ publicKey: Data) -> String
     #if canImport(CryptoKit)
     var input = soaSealKeyIDDomain
     input.append(publicKey)
-    let digest = SHA256.hash(data: input)
+    let digest = CryptoKit.SHA256.hash(data: input)
     let bytes = Array(digest.prefix(16))
     let hex = bytes.map { String(format: "%02X", $0) }.joined()
     let groups = stride(from: 0, to: hex.count, by: 4).map { offset -> String in

@@ -51,7 +51,7 @@ if(APPLE)
                 "$<TARGET_BUNDLE_DIR:${PROJECT_NAME}>/Contents/Resources/alicia-log-hook/README.md"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/minhook/LICENSE.txt"
-                "$<TARGET_BUNDLE_DIR:${PROJECT_NAME}>/Contents/Resources/alicia-log-hook/LICENSE.txt"
+                "$<TARGET_BUNDLE_DIR:${PROJECT_NAME}>/Contents/Resources/alicia-log-hook/MINHOOK_LICENSE.txt"
                 VERBATIM
         )
     endif()

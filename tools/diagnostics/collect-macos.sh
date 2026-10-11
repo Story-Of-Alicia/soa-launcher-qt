@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export LC_ALL=C
 umask 077
 
 APP_SUPPORT="$HOME/Library/Application Support/Story of Alicia"

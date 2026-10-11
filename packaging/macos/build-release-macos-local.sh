@@ -26,6 +26,9 @@ Optional environment variables:
                           omitted, the only installed Developer ID Application
                           identity is selected automatically.
   SOA_QT_PREFIX           Complete universal Qt macOS installation
+  SOA_QT_VERSION          Version downloaded by aqt when Qt is missing (default: 6.8.3)
+  SOA_QT_INSTALL_ROOT     Qt installation root (default: ~/Qt)
+  SOA_RELEASE_REQUIRE_TESTS  Require passing tests (default: 1, set 0 to continue)
   SOA_BUILD_DIR           Build directory (default: build-macos-release-local)
   SOA_BUILD_TYPE          CMake configuration (default: Release)
   SOA_MACOS_ARCHS         Architectures (default: x86_64;arm64)
@@ -106,6 +109,7 @@ printf 'Building universal macOS release with identity:\n  %s\n' "$DEVELOPER_IDE
 SOA_SOURCE_DIR="$PROJECT_ROOT" \
 SOA_BUILD_DIR="$BUILD_DIR" \
 SOA_BUILD_TYPE="$BUILD_TYPE" \
+SOA_REQUIRE_TESTS="${SOA_RELEASE_REQUIRE_TESTS:-1}" \
   "$SCRIPT_DIR/build-local.sh"
 
 APP="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" app_bundle)"
@@ -175,7 +179,7 @@ spctl --assess \
 "$SCRIPT_DIR/generate-macos-update-metadata.sh" "$VERSION" "$DMG"
 SOA_EXPECTED_TEAM_ID="$SIGNED_TEAM_ID" \
 SOA_NETWORK_LIBRARY_NAME="$NETWORK_NAME" \
-  "$SCRIPT_DIR/verify-release.sh" \
+  bash "$SCRIPT_DIR/verify-release.sh" \
   "$DMG" \
   "$SCRIPT_DIR/manifest.json" \
   "$SCRIPT_DIR/manifest.json.seal" \

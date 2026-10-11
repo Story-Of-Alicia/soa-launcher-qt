@@ -1,6 +1,13 @@
 # Third-party dependencies used across launcher modules.
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent LinguistTools)
+if(APPLE AND Qt6_VERSION VERSION_LESS 6.9 AND TARGET WrapOpenGL::WrapOpenGL)
+    get_target_property(soa_opengl_links WrapOpenGL::WrapOpenGL INTERFACE_LINK_LIBRARIES)
+    if(soa_opengl_links)
+        list(FILTER soa_opengl_links EXCLUDE REGEX "AGL")
+        set_property(TARGET WrapOpenGL::WrapOpenGL PROPERTY INTERFACE_LINK_LIBRARIES "${soa_opengl_links}")
+    endif()
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 endif()
