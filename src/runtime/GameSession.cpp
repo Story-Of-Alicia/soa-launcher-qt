@@ -1232,7 +1232,14 @@ namespace soa::runtime
             return;
         }
 
-        if (verification_attempts_ >= k_start_max_attempts)
+#if defined(Q_OS_LINUX)
+        const bool proton_injector_launch = runtime_.runtime_is_proton() &&
+                                            !diagnostics_.run_directory().isEmpty();
+#else
+        constexpr bool proton_injector_launch = false;
+#endif
+        const int startup_attempt_limit = proton_injector_launch ? 180 : k_start_max_attempts;
+        if (verification_attempts_ >= startup_attempt_limit)
         {
             QString detail = soa::i18n::translate(
                 "The compatibility process started, but Alicia.exe was never observed in the process list.");
@@ -1910,6 +1917,15 @@ namespace soa::runtime
             RuntimeLocator::apply_runtime_environment_entries(
                 environment, custom_arguments.environment_entries);
 
+            if (!diagnostics_.run_directory().isEmpty())
+            {
+                environment.insert(QStringLiteral("PROTON_LOG"), QStringLiteral("1"));
+                environment.insert(QStringLiteral("PROTON_LOG_DIR"),
+                                   diagnostics_.run_directory());
+                environment.insert(QStringLiteral("WINEDEBUG"),
+                                   diagnostics_configuration.wine_debug);
+            }
+
             if (alicia_log_hook.available)
             {
                 if (!alicia_log_hook.log_windows_path.isEmpty())
@@ -1933,7 +1949,7 @@ namespace soa::runtime
             QStringList arguments;
             if (alicia_log_hook.available)
             {
-                arguments << alicia_log_hook.injector_host_path << windows_executable;
+                arguments << alicia_log_hook.injector_windows_path << windows_executable;
             }
             else
             {
@@ -2081,11 +2097,6 @@ namespace soa::runtime
             macos_dll_overrides += QLatin1Char(';') + custom_wine_overrides;
             SPDLOG_INFO("Appending custom Wine DLL overrides: {}",
                         custom_wine_overrides.toStdString());
-        }
-        if (Config::instance().macos_video_decoder_workaround())
-        {
-            macos_dll_overrides += QStringLiteral(";winegstreamer=");
-            SPDLOG_INFO("macOS video decoder workaround enabled: Wine GStreamer disabled");
         }
         environment.insert(QStringLiteral("WINEDLLOVERRIDES"), macos_dll_overrides);
         SPDLOG_INFO("Effective Alicia WINEDLLOVERRIDES: {}",

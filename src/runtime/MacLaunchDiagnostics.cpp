@@ -386,6 +386,7 @@ namespace soa::runtime
         SnapshotProvider snapshot_provider;
         quint64 launch_generation {};
         bool timeline_finished {};
+        bool seen_process {};
         bool seen_create_device {};
         bool seen_present {};
         bool seen_draw {};
@@ -417,6 +418,7 @@ namespace soa::runtime
         d_->snapshot_provider = {};
         d_->clock.invalidate();
         d_->timeline_finished = false;
+        d_->seen_process = false;
         d_->seen_create_device = false;
         d_->seen_present = false;
         d_->seen_draw = false;
@@ -635,6 +637,9 @@ namespace soa::runtime
             return;
         }
 
+        if (event == QStringLiteral("alicia_process_observed"))
+            d_->seen_process = true;
+
         QJsonObject object;
         object.insert(QStringLiteral("schema"), 1);
         object.insert(QStringLiteral("session"), d_->session_id);
@@ -818,6 +823,8 @@ namespace soa::runtime
                 stage = QStringLiteral("after_present_before_draw");
             else if (d_->seen_create_device)
                 stage = QStringLiteral("after_device_before_present");
+            else if (d_->seen_process)
+                stage = QStringLiteral("process_observed_graphics_unconfirmed");
 
             QTextStream stream(&summary);
             QStringList findings = known_log_findings(d_->diagnostic_path);
@@ -837,6 +844,7 @@ namespace soa::runtime
                    << "crashed=" << crashed << "\n"
                    << "duration_ms=" << elapsed_ms() << "\n"
                    << "stage=" << stage << "\n"
+                   << "process_seen=" << d_->seen_process << "\n"
                    << "create_device_seen=" << d_->seen_create_device << "\n"
                    << "present_seen=" << d_->seen_present << "\n"
                    << "draw_seen=" << d_->seen_draw << "\n"

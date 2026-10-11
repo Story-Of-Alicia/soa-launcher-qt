@@ -74,6 +74,29 @@ namespace
 
     void append_status(const wchar_t* message, const DWORD error = ERROR_SUCCESS)
     {
+        wchar_t line[1024] {};
+        const int count = error == ERROR_SUCCESS
+            ? wsprintfW(line, L"[injector] %s\r\n", message)
+            : wsprintfW(line, L"[injector] %s (win32_error=%lu)\r\n", message, error);
+        if (count <= 0)
+            return;
+
+        const int utf8_size = WideCharToMultiByte(CP_UTF8, 0, line, count, nullptr, 0,
+                                                  nullptr, nullptr);
+        if (utf8_size <= 0)
+            return;
+        std::vector<char> utf8(static_cast<std::size_t>(utf8_size));
+        WideCharToMultiByte(CP_UTF8, 0, line, count, utf8.data(), utf8_size,
+                            nullptr, nullptr);
+
+        const HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+        if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE)
+        {
+            DWORD written = 0;
+            WriteFile(stderr_handle, utf8.data(), static_cast<DWORD>(utf8.size()),
+                      &written, nullptr);
+        }
+
         wchar_t path[32768] {};
         const DWORD length = GetEnvironmentVariableW(
             L"SOA_ALICIA_LOG_PATH", path, static_cast<DWORD>(std::size(path)));
@@ -86,23 +109,8 @@ namespace
         if (file == INVALID_HANDLE_VALUE)
             return;
 
-        wchar_t line[1024] {};
-        const int count = error == ERROR_SUCCESS
-            ? wsprintfW(line, L"[injector] %s\r\n", message)
-            : wsprintfW(line, L"[injector] %s (win32_error=%lu)\r\n", message, error);
-        if (count > 0)
-        {
-            const int utf8_size = WideCharToMultiByte(CP_UTF8, 0, line, count, nullptr, 0,
-                                                      nullptr, nullptr);
-            if (utf8_size > 0)
-            {
-                std::vector<char> utf8(static_cast<std::size_t>(utf8_size));
-                WideCharToMultiByte(CP_UTF8, 0, line, count, utf8.data(), utf8_size,
-                                    nullptr, nullptr);
-                DWORD written = 0;
-                WriteFile(file, utf8.data(), static_cast<DWORD>(utf8.size()), &written, nullptr);
-            }
-        }
+        DWORD written = 0;
+        WriteFile(file, utf8.data(), static_cast<DWORD>(utf8.size()), &written, nullptr);
         CloseHandle(file);
     }
 
@@ -186,6 +194,7 @@ namespace
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
+    append_status(L"injector process started");
     int argc = 0;
     wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (!argv || argc < 2)
@@ -223,6 +232,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         append_status(L"CreateProcessW(Alicia.exe) failed", GetLastError());
         return 4;
     }
+    append_status(L"Alicia.exe created suspended; loading hook DLL");
     SetEnvironmentVariableW(L"SOA_ALICIA_LOG_REDACT", nullptr);
     SetEnvironmentVariableW(L"SOA_ALICIA_LOG_ALL", nullptr);
 
@@ -246,6 +256,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         return 6;
     }
 
+    append_status(L"Alicia.exe resumed");
     CloseHandle(process.hThread);
     WaitForSingleObject(process.hProcess, INFINITE);
     DWORD exit_code = 1;
