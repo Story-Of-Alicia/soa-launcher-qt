@@ -28,6 +28,10 @@ The launcher is designed to work for regular players without requiring knowledge
 
 ## Supported platforms
 
+> [!Warning]
+> If there is not found any new compatible wine runtime that can provide acceptable game performance
+> then **macOS support will be discontinued in December 2026.**
+
 | Platform | Status |
 |---|---|
 | Linux x86_64 | Supported |
@@ -35,9 +39,6 @@ The launcher is designed to work for regular players without requiring knowledge
 | macOS Apple Silicon | Experimental |
 | macOS Intel | Experimental / untested |
 | Windows | Use the original Windows launcher |
-
-> **Note:** If there is not found any new compatible wine runtime that can provide acceptable game performance
-> then macOS support will be discontinued in December 2026.
 
 ## Download
 
