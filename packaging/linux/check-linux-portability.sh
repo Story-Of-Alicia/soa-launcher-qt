@@ -3,9 +3,16 @@
 set -euo pipefail
 
 ROOT="${1:?Usage: check-linux-portability.sh APPDIR}"
+ROOT="$(cd "$ROOT" && pwd -P)"
 MAX_GLIBC="${SOA_MAX_GLIBC:-2.35}"
 MAX_GLIBCXX="${SOA_MAX_GLIBCXX:-3.4.30}"
 FAILED=0
+for required_artifact in "$ROOT/usr/bin/soa_launcher" "$ROOT/usr/lib/libsoa_network.so"; do
+  if [ ! -s "$required_artifact" ]; then
+    echo "Required installed launcher artifact is missing: $required_artifact" >&2
+    FAILED=1
+  fi
+done
 BUNDLE_LIBRARY_PATH="$ROOT/usr/lib"
 if [ -d "$ROOT/usr/lib64" ]; then
   BUNDLE_LIBRARY_PATH="$BUNDLE_LIBRARY_PATH:$ROOT/usr/lib64"

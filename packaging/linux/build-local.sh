@@ -6,47 +6,44 @@ echo "SOA Linux local AppImage builder"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-resolve_project_root() {
-  local requested="${1:-${SOA_SOURCE_DIR:-}}"
-  local candidate
-
-  if [ -n "$requested" ]; then
-    candidate="$(cd "$requested" 2>/dev/null && pwd)" || {
-      echo "Launcher source directory does not exist: $requested" >&2
-      exit 1
-    }
-  elif [ -f "$PWD/CMakeLists.txt" ]; then
-    candidate="$PWD"
-  else
-    candidate="$SCRIPT_DIR"
-    while [ "$candidate" != "/" ] && [ ! -f "$candidate/CMakeLists.txt" ]; do
-      candidate="$(dirname "$candidate")"
-    done
-  fi
-
-  if [ ! -f "$candidate/CMakeLists.txt" ]; then
-    echo "Could not find the launcher CMakeLists.txt." >&2
-    echo "Run this script from the repository root, pass the source directory as its first argument," >&2
-    echo "or set SOA_SOURCE_DIR=/path/to/soa-launcher-qt." >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$candidate"
-}
+source "$SCRIPT_DIR/../build-common.sh"
 
 if [ "$#" -gt 1 ]; then
   echo "Usage: $0 [launcher-source-directory]" >&2
   exit 2
 fi
 
-PROJECT_ROOT="$(resolve_project_root "${1:-}")"
-
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(soa_resolve_project_root "${1:-${SOA_SOURCE_DIR:-}}" "$SCRIPT_DIR")"
+SCRIPT_DIR="$PROJECT_ROOT/packaging/linux"
 
 echo "Launcher source directory: $PROJECT_ROOT"
 
-BUILD_DIR="${SOA_BUILD_DIR:-$SCRIPT_DIR/build-linux-local}"
-APPDIR="${SOA_APPDIR:-$SCRIPT_DIR/AppDir-local}"
+BUILD_DIR="$(soa_absolute_directory "${SOA_BUILD_DIR:-$SCRIPT_DIR/build-linux-local}")"
+APPDIR="$(soa_absolute_directory "${SOA_APPDIR:-$SCRIPT_DIR/AppDir-local}")"
+BUILD_TYPE="${SOA_BUILD_TYPE:-Release}"
+SOA_BUILD_TESTS="${SOA_BUILD_TESTS:-${SOA_BUILD_TESTING:-OFF}}"
+case "$SOA_BUILD_TESTS" in
+  ON|on|1|TRUE|true|YES|yes) SOA_BUILD_TESTS=ON ;;
+  OFF|off|0|FALSE|false|NO|no|"") SOA_BUILD_TESTS=OFF ;;
+  *) echo "SOA_BUILD_TESTS must be ON or OFF." >&2; exit 2 ;;
+esac
+soa_validate_output_directory "$BUILD_DIR" "$PROJECT_ROOT"
+soa_validate_output_directory "$APPDIR" "$PROJECT_ROOT"
+case "$BUILD_DIR/" in
+  "$APPDIR/"*) echo "SOA_APPDIR must not contain SOA_BUILD_DIR." >&2; exit 1 ;;
+esac
+case "$APPDIR/" in
+  "$BUILD_DIR/"*) echo "SOA_BUILD_DIR must not contain SOA_APPDIR." >&2; exit 1 ;;
+esac
+soa_validate_build_cache "$BUILD_DIR" "$PROJECT_ROOT" Ninja
+
+if [ -n "${SOA_UPDATE_SIGNING_KEY:-}" ] && [ -f "$SOA_UPDATE_SIGNING_KEY" ]; then
+  SOA_UPDATE_SIGNING_KEY="$(cd "$(dirname "$SOA_UPDATE_SIGNING_KEY")" && pwd -P)/$(basename "$SOA_UPDATE_SIGNING_KEY")"
+  export SOA_UPDATE_SIGNING_KEY
+fi
+
+cd "$SCRIPT_DIR"
+
 LINUXDEPLOY_TAG="${LINUXDEPLOY_TAG:-1-alpha-20250213-2}"
 LINUXDEPLOY_SHA256="${LINUXDEPLOY_SHA256:-4648f278ab3ef31f819e67c30d50f462640e5365a77637d7e6f2ad9fd0b4522a}"
 
@@ -102,8 +99,9 @@ require_command desktop-file-validate
 require_command patchelf
 require_command i686-w64-mingw32-gcc
 require_command i686-w64-mingw32-g++
-
-
+if [ "$SOA_BUILD_TESTS" = ON ]; then
+  require_command ctest
+fi
 
 if [ -z "${QMAKE:-}" ]; then
   QMAKE="$(command -v qmake6 || true)"
@@ -125,18 +123,35 @@ cmake \
   -S "$PROJECT_ROOT" \
   -B "$BUILD_DIR" \
   -G Ninja \
-  -DCMAKE_BUILD_TYPE="${SOA_BUILD_TYPE:-Release}" \
-  -DBUILD_TESTING="${SOA_BUILD_TESTING:-OFF}" \
+  -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_INSTALL_BINDIR=bin \
+  -DCMAKE_INSTALL_LIBDIR=lib \
+  -DCMAKE_INSTALL_DATADIR=share \
+  -DCMAKE_INSTALL_LIBEXECDIR=libexec \
+  -DBUILD_TESTING="$SOA_BUILD_TESTS" \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
   -DSOA_PORTABLE_BUILD=OFF
 
-cmake --build "$BUILD_DIR"
+cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
+if [ "$SOA_BUILD_TESTS" = ON ]; then
+  QT_QPA_PLATFORM=offscreen LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure --no-tests=error
+fi
 
-DESTDIR="$APPDIR" cmake --install "$BUILD_DIR" --prefix /usr
+DESTDIR="$APPDIR" cmake --install "$BUILD_DIR" --config "$BUILD_TYPE" --prefix /usr
+
+NETWORK_NAME="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" network_name)"
+for required_artifact in "$APPDIR/usr/bin/soa_launcher" "$APPDIR/usr/lib/$NETWORK_NAME"; do
+  if [ ! -s "$required_artifact" ]; then
+    echo "Required installed launcher artifact is missing: $required_artifact" >&2
+    exit 1
+  fi
+done
 
 
-cp soa-launcher.png "$APPDIR/soa-launcher.png"
-cp soa-launcher.desktop "$APPDIR/soa-launcher.desktop"
+cp "$SCRIPT_DIR/soa-launcher.png" "$APPDIR/soa-launcher.png"
+cp "$SCRIPT_DIR/soa-launcher.desktop" "$APPDIR/soa-launcher.desktop"
 
 desktop-file-validate "$APPDIR/usr/share/applications/soa-launcher.desktop"
 
@@ -145,8 +160,7 @@ get_tool \
   "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LINUXDEPLOY_TAG/linuxdeploy-x86_64.AppImage" \
   "$LINUXDEPLOY_SHA256"
 
-SWIFT_BIN="$(dirname "$(command -v swiftc)")"
-SWIFT_LIB="$(dirname "$SWIFT_BIN")/lib/swift/linux"
+SWIFT_LIB="$(soa_swift_runtime_library_path "$(command -v swiftc)" "$APPDIR/usr/lib/$NETWORK_NAME")"
 
 QT_VERSION="$("$QMAKE" -query QT_VERSION)"
 QT_PLUGIN_DIR="$("$QMAKE" -query QT_INSTALL_PLUGINS)"
@@ -169,13 +183,12 @@ if [ ! -e "$QT_LIB_DIR/libQt6Core.so.6" ]; then
   exit 1
 fi
 
-if [ ! -d "$SWIFT_LIB" ]; then
-  echo "Swift Linux runtime directory was not found: $SWIFT_LIB" >&2
+if ! soa_swift_runtime_has_core "$SWIFT_LIB"; then
+  echo "Swift Linux runtime libraries were not found: $SWIFT_LIB" >&2
   exit 1
 fi
 
-export LD_LIBRARY_PATH="${QT_LIB_DIR}:${SWIFT_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-export NO_STRIP=1
+PACKAGING_LD_LIBRARY_PATH="${QT_LIB_DIR}:${SWIFT_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 if command -v locale >/dev/null 2>&1 \
     && LC_ALL=C.UTF-8 locale charmap >/dev/null 2>&1; then
@@ -210,7 +223,7 @@ copy_qt_platform_dependency() {
   local source
 
   source="$(
-    ldd "$consumer" 2>/dev/null \
+    LD_LIBRARY_PATH="$PACKAGING_LD_LIBRARY_PATH" ldd "$consumer" 2>/dev/null \
       | awk -v expected="$soname" \
           '$1 == expected && $2 == "=>" && $3 ~ /^\// { print $3; exit }'
   )"
@@ -240,7 +253,7 @@ copy_qt_plugin() {
     return 0
   fi
 
-  dependencies="$(ldd "$source" 2>/dev/null || true)"
+  dependencies="$(LD_LIBRARY_PATH="$PACKAGING_LD_LIBRARY_PATH" ldd "$source" 2>/dev/null || true)"
   if grep -qE '=> not found|libheif\.so\.1' <<< "$dependencies"; then
     if [ "$required" = "1" ]; then
       echo "Required Qt plugin has unresolved dependencies: $source" >&2
@@ -269,6 +282,37 @@ copy_qt_plugin_directory() {
   while IFS= read -r -d '' source; do
     copy_qt_plugin "$category" "$(basename "$source")"
   done < <(find "$QT_PLUGIN_DIR/$category" -maxdepth 1 -type f -name '*.so' -print0)
+}
+
+copy_swift_runtime_libraries() {
+  local directory pattern match
+  local directories=()
+  local matches=()
+
+  IFS=':' read -r -a directories <<<"$SWIFT_LIB"
+  mkdir -p "$APPDIR/usr/lib"
+
+  for directory in "${directories[@]}"; do
+    [ -d "$directory" ] || continue
+    for pattern in \
+        'libswift*.so*' \
+        'libFoundation*.so*' \
+        'libdispatch.so*' \
+        'libBlocksRuntime.so*' \
+        'lib_FoundationICU.so*'; do
+      shopt -s nullglob
+      matches=("$directory"/$pattern)
+      shopt -u nullglob
+      for match in "${matches[@]}"; do
+        cp -a "$match" "$APPDIR/usr/lib/"
+      done
+    done
+  done
+
+  if ! compgen -G "$APPDIR/usr/lib/libswiftCore.so*" >/dev/null; then
+    echo "libswiftCore was not copied into the local AppImage." >&2
+    exit 1
+  fi
 }
 
 copy_qt_plugin platforms libqxcb.so 1
@@ -305,6 +349,8 @@ copy_qt_library_family libQt6XcbQpa
 copy_qt_library_family libQt6WaylandClient
 copy_qt_library_family libQt6WaylandEglClientHwIntegration 0
 copy_qt_library_family libQt6WlShellIntegration 0
+
+copy_swift_runtime_libraries
 
 copy_qt_plugin_directory platforminputcontexts
 copy_qt_plugin_directory xcbglintegrations
@@ -377,7 +423,7 @@ if [ -d "$QT_TRANSLATIONS_DIR" ]; then
 fi
 
 while IFS= read -r -d '' packaged_plugin; do
-  if ldd "$packaged_plugin" 2>/dev/null | grep -q 'libheif\.so\.1'; then
+  if LD_LIBRARY_PATH="$PACKAGING_LD_LIBRARY_PATH" ldd "$packaged_plugin" 2>/dev/null | grep -q 'libheif\.so\.1'; then
     echo "A curated Qt plugin unexpectedly references libheif.so.1: $packaged_plugin" >&2
     exit 1
   fi
@@ -389,11 +435,27 @@ if [ -e "$OUTPUT" ]; then
   rm -f "$OUTPUT"
 fi
 
-./linuxdeploy-x86_64.AppImage \
-  --appdir "$APPDIR" \
-  --output appimage \
-  --desktop-file "$APPDIR/usr/share/applications/soa-launcher.desktop" \
-  --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/soa-launcher.png"
+APPIMAGETOOL_ROOT="$(mktemp -d)"
+cleanup_appimagetool() {
+  rm -rf "$APPIMAGETOOL_ROOT"
+}
+trap cleanup_appimagetool EXIT
+
+(
+  cd "$APPIMAGETOOL_ROOT"
+  "$SCRIPT_DIR/linuxdeploy-x86_64.AppImage" --appimage-extract >/dev/null
+)
+
+APPIMAGETOOL="$APPIMAGETOOL_ROOT/squashfs-root/plugins/linuxdeploy-plugin-appimage/usr/bin/appimagetool"
+if [ ! -x "$APPIMAGETOOL" ]; then
+  echo "The pinned linuxdeploy AppImage does not contain appimagetool." >&2
+  exit 1
+fi
+
+ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$OUTPUT"
+
+cleanup_appimagetool
+trap - EXIT
 
 run_portability_check "$APPDIR"
 

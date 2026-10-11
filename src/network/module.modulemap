@@ -1,0 +1,6 @@
+module Soa_Courier
+{
+    header "../../include/network/Courier.h"
+    header "../../include/network/SwiftNetwork.h"
+    export *
+}

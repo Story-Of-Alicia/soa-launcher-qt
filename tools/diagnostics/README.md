@@ -1,68 +1,40 @@
 # Diagnostics
 
-Tools for working out why a launch failed, and for collecting everything needed
-to ask someone else. Written by hand with AI assistance.
+Developer tools for investigating failed Alicia launches on Linux and macOS.
 
-## Log modes
+## Tools
 
-`wine-debug-profiles.sh` holds the WINEDEBUG channel sets, so the launcher, the
-shell and CI all use the same definitions.
+- `wine-debug-profiles.sh` defines the `WINEDEBUG` profiles used by the launcher and scripts.
+- `soa-log-analyze.py` analyzes Wine/Proton logs, `alicia.log`, and launch timelines. It can also compare multiple runs.
+- `collect-linux.sh` and `collect-macos.sh` bundle recent diagnostic runs, system details, and analyzer reports.
 
-| mode | rough size, 60s run | what it gets you |
-|---|---|---|
-| `off` | – | nothing; use when measuring performance |
-| `normal` | 1–3 MB | which modules loaded, which failed, every error |
-| `verbose` | 20–60 MB | plus per-thread activity, graphics, audio, SEH |
-| `audio` | 3–8 MB | memory mappings and the audio stack only |
-| `forensic` | 200–800 MB | plus registry, file I/O, window messages, sync, heap |
-| `relay` | GBs | every cross-DLL call; roughly 20x slower |
+## Debug profiles
 
-    source tools/diagnostics/wine-debug-profiles.sh
-    export WINEDEBUG="$(soa_wine_debug verbose)"
+```bash
+source tools/diagnostics/wine-debug-profiles.sh
+export WINEDEBUG="$(soa_wine_debug verbose)"
+```
 
-A `relay` run is a different experiment rather than a slower one, the timing
-changes enough that the game often fails somewhere else entirely. `forensic` is
-heavy enough to do the same, which is why `audio` exists.
+Available profiles: `off`, `normal`, `verbose`, `audio`, `forensic`, and `relay`. The last two can create very large logs and alter launch timing.
 
-## Reading a run
+## Collect
 
-    tools/diagnostics/soa-log-analyze.py <run-directory>
-    tools/diagnostics/soa-log-analyze.py wine.log --alicia alicia.log --timeline timeline.jsonl
-    tools/diagnostics/soa-log-analyze.py wine.log --json report.json
+Enable **Diagnostic Mode** in the launcher and reproduce the issue first. Then, from the repository root:
 
-Given a diagnostic run directory it finds `wine.log`, `alicia.log` and
-`timeline.jsonl` on its own. It streams, so a multi-gigabyte relay log is fine,
-and it reads all four Wine line formats — a log recorded without `+timestamp`
-still parses.
+```bash
+bash tools/diagnostics/collect-linux.sh
+bash tools/diagnostics/collect-macos.sh
+```
 
-It reports:
+Run the collector for your platform. Archives contain separate launch runs, `analysis.txt`/`analysis.json` when available, and `timeline-summary.txt`. Proton runs can include `steam-*.log` alongside `wine.log` and the injector's `alicia.log`.
 
-- **How far the launch got**, from the milestones in `timeline.jsonl`
-- **Modules loaded** - name, base address, order, native or system
-- **Modules that failed**, split into unexpected and expected-on-this-platform.
-  Wine probes every audio backend and uses whichever exists, so on macOS
-  `winepulse`, `winealsa`, `wineoss` and `wineandroid` always fail and it means
-  nothing. Reading those as the fault wasted a lot of time once.
-- **Exceptions** with the NTSTATUS decoded, marking which are fatal-class and
-  which are routine
-- **Wine assertions** - bugs in the Wine build, not in the game
-- **Last activity per thread**, newest first; the quiet ones died first
-- **A verdict** in plain English
+Use `--full-logs` to disable game-log size limits or `--include-registry` to collect Wine registry files. Collection redacts recognizable credentials on a best-effort basis, **review archives before sharing**.
 
-## Collecting a bundle
+## Analyze manually
 
-    tools/diagnostics/collect-macos.sh
-    tools/diagnostics/collect-linux.sh
+```bash
+python3 tools/diagnostics/soa-log-analyze.py /path/to/run-directory
+python3 tools/diagnostics/soa-log-analyze.py --compare-timelines /path/to/runs
+```
 
-Each gathers logs, host details, prefix registry and graphics/audio settings,
-runs the analyser over the newest run, and produces one archive containing
-`analysis.txt`.
-
-## A caveat about log quality
-
-Wine writes debug output unbuffered, so when two threads write at once their
-lines splice together and a message from one lands inside another. The analyser
-flags what it can detect as `<<SPLICED>>`, but not every case is detectable.
-
-It is worse when stderr is captured through a pipe, where only `PIPE_BUF` bytes
-are atomic. Writing Wine's stderr straight to a file reduces it noticeably.
+The analyzer streams large logs. Wine warnings, optional module failures, and missing timeline milestones do not necessarily indicate a crash.

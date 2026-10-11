@@ -1,41 +1,52 @@
 # Translations
 
-The launcher resolves strings at runtime through `QCoreApplication::translate`
-with a non-literal source, so `lupdate` cannot maintain `translations/*.ts`.
-Whatever populates them sweeps up registry fragments, environment variable
-names, command-line flags and paths alongside the real UI text.
+Translations are grouped into contexts so they are easier to work with in Qt Linguist:
 
-`filter-translatable.py` separates the two.
+- Launcher & Navigation
+- Home & Account
+- Setup & Rules
+- Game Installation & Repair
+- Game Launch & Session
+- Runtime & Compatibility
+- Network & Transfers
+- Launcher Updates
+- Settings
+- About & Credits
+- Logs & Diagnostics
 
-    tools/i18n/filter-translatable.py --check translations/*.ts   # CI gate
-    tools/i18n/filter-translatable.py --missing translations/*.ts # missing UI literals
-    tools/i18n/filter-translatable.py --list  translations/soa_launcher_en.ts
+Qt Linguist may show these alphabetically.
+
+The launcher checks these contexts when looking up translations. Each source
+string should only exist in one category.
+
+Some strings are created at runtime and cannot be picked up properly by
+`lupdate`. Those are added manually in `src/i18n/TranslationCatalog.cpp`.
+
+Useful commands:
+
+    tools/i18n/filter-translatable.py --check translations/*.ts
+    tools/i18n/filter-translatable.py --missing translations/*.ts
+    tools/i18n/filter-translatable.py --list translations/soa_launcher_en.ts
     tools/i18n/filter-translatable.py --prune translations/*.ts
 
-`--prune` edits every file it is given the same way, and refuses to run unless
-they already contain identical source strings, so the catalogues cannot drift
-apart. `--check` runs in CI on Linux.
+`--missing` checks strings used through `soa::i18n::translate(...)` along with
+the runtime strings registered in `TranslationCatalog.cpp`. It also checks that
+English, Norwegian and Dutch contain the same source strings.
 
-`--missing` scans literal `util::i18n::translate("...")` calls under `src/` and
-fails when a source is absent from the `Launcher` context used by that helper.
-It also checks that the `Launcher` context agrees across every catalogue. This
-catches strings stored under the wrong Qt context, which otherwise exist in the
-`.ts` files but still render in English. Dynamic sources still need manual
-review.
+`--prune` removes things that should not be translated, such as command-line
+flags, environment variables, registry data, paths and filenames. Names like
+Wine, Proton and Discord also do not need their own translation, but sentences
+containing them still do.
+
+English is the source language, so it is not built into a `.qm` file. Keep the
+English translations empty and marked as unfinished.
+
+Norwegian and Dutch entries also start empty and unfinished. When a translation
+is finished, remove `type="unfinished"` from that entry.
 
 ## Markup
 
-Inline styling never belongs in a translatable string. As an example if this was in the
-catalogue:
+Try to keep markup out of translated strings. Build the layout in code and only
+translate the actual text.
 
-    <h2 style='color:#4F1717; margin-top:0;'>Before entering the playtest</h2>
-
-A translator cannot be expected to preserve that, and one mangled tag breaks
-the layout. Build the markup in the source and pass the prose through a
-placeholder:
-
-    label->setText(QStringLiteral("<h2 style='...'>%1</h2>")
-        .arg(util::i18n::translate("Before entering the playtest")));
-
-Light inline emphasis inside a sentence (`<b>`, `<br>`) is fine to leave in
-place. Block elements and anything carrying `style=` are rejected.
+Small things like `<b>` and `<br>` are fine when they are part of the sentence.

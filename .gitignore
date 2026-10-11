@@ -87,3 +87,10 @@ Testing/
 /packaging/macos/macos-versions.json.seal
 .DS_Store
 /packaging/linux/manifest.json
+/packaging/linux/manifest.json.seal
+/packaging/linux/AppDir-local/
+/packaging/linux/Story_Of_Alicia-*-x86_64.AppImage
+/packaging/macos/manifest.json
+/packaging/macos/manifest.json.seal
+/packaging/macos/versions.json
+/packaging/macos/versions.json.seal

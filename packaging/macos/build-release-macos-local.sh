@@ -3,7 +3,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../build-common.sh"
+PROJECT_ROOT="$(soa_resolve_project_root "${SOA_SOURCE_DIR:-}" "$SCRIPT_DIR")"
+SCRIPT_DIR="$PROJECT_ROOT/packaging/macos"
 
 usage() {
   cat <<'EOF'
@@ -24,6 +26,9 @@ Optional environment variables:
                           omitted, the only installed Developer ID Application
                           identity is selected automatically.
   SOA_QT_PREFIX           Complete universal Qt macOS installation
+  SOA_QT_VERSION          Version downloaded by aqt when Qt is missing (default: 6.8.3)
+  SOA_QT_INSTALL_ROOT     Qt installation root (default: ~/Qt)
+  SOA_RELEASE_REQUIRE_TESTS  Require passing tests (default: 1, set 0 to continue)
   SOA_BUILD_DIR           Build directory (default: build-macos-release-local)
   SOA_BUILD_TYPE          CMake configuration (default: Release)
   SOA_MACOS_ARCHS         Architectures (default: x86_64;arm64)
@@ -96,43 +101,30 @@ if [ -z "${SOA_UPDATE_SIGNING_KEY:-}" ] || [ ! -f "$SOA_UPDATE_SIGNING_KEY" ]; t
   exit 1
 fi
 
-mkdir -p "$BUILD_DIR"
-BUILD_DIR="$(cd "$BUILD_DIR" && pwd -P)"
-if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
-  CACHED_BUILD_DIR="$(sed -n 's/^CMAKE_CACHEFILE_DIR:INTERNAL=//p' \
-    "$BUILD_DIR/CMakeCache.txt" | head -n 1)"
-  if [ -n "$CACHED_BUILD_DIR" ] && [ "$CACHED_BUILD_DIR" != "$BUILD_DIR" ]; then
-    echo "This CMake build directory was moved after configuration." >&2
-    echo "Cached path: $CACHED_BUILD_DIR" >&2
-    echo "Current path: $BUILD_DIR" >&2
-    echo "Choose a fresh SOA_BUILD_DIR; do not rename configured CMake build directories." >&2
-    exit 1
-  fi
-fi
+BUILD_DIR="$(soa_absolute_directory "$BUILD_DIR")"
+soa_validate_output_directory "$BUILD_DIR" "$PROJECT_ROOT"
+soa_validate_build_cache "$BUILD_DIR" "$PROJECT_ROOT" Xcode
 
 printf 'Building universal macOS release with identity:\n  %s\n' "$DEVELOPER_IDENTITY"
+SOA_SOURCE_DIR="$PROJECT_ROOT" \
 SOA_BUILD_DIR="$BUILD_DIR" \
 SOA_BUILD_TYPE="$BUILD_TYPE" \
+SOA_REQUIRE_TESTS="${SOA_RELEASE_REQUIRE_TESTS:-1}" \
   "$SCRIPT_DIR/build-local.sh"
 
-apps=()
-while IFS= read -r -d '' candidate; do
-  apps+=("$candidate")
-done < <(find "$BUILD_DIR/$BUILD_TYPE" -maxdepth 1 -type d -name '*.app' -print0)
-if [ "${#apps[@]}" -ne 1 ]; then
-  printf 'Expected one application in %s/%s, found %s.\n' \
-    "$BUILD_DIR" "$BUILD_TYPE" "${#apps[@]}" >&2
+APP="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" app_bundle)"
+if [ ! -d "$APP" ]; then
+  printf 'The configured app bundle was not built: %s\n' "$APP" >&2
   exit 1
 fi
-APP="${apps[0]}"
-VERSION="$(sed -nE \
-  's/^[[:space:]]*VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' \
-  "$PROJECT_ROOT/CMakeLists.txt" | head -n 1)"
+VERSION="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" version)"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
   echo "Could not determine a valid launcher version." >&2
   exit 1
 fi
-GENERATED_DMG="$BUILD_DIR/Story_Of_Alicia-macos.dmg"
+PACKAGE_NAME="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" package_name)"
+NETWORK_NAME="$(soa_build_value "$BUILD_DIR" "$BUILD_TYPE" network_name)"
+GENERATED_DMG="$BUILD_DIR/$PACKAGE_NAME.dmg"
 DMG="$BUILD_DIR/Story_Of_Alicia-${VERSION}-macos.dmg"
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/soa-release-local.XXXXXX")"
 cleanup() {
@@ -145,6 +137,16 @@ trap cleanup EXIT
   "$DEVELOPER_IDENTITY" \
   "$SCRIPT_DIR/entitlements.plist"
 
+SIGNED_TEAM_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p' | head -n 1)"
+if [ -z "$SIGNED_TEAM_ID" ] || [ "$SIGNED_TEAM_ID" = "not set" ]; then
+  echo "The signed application does not contain an Apple Team ID." >&2
+  exit 1
+fi
+if [ -n "${SOA_EXPECTED_TEAM_ID:-}" ] && [ "$SIGNED_TEAM_ID" != "$SOA_EXPECTED_TEAM_ID" ]; then
+  echo "Unexpected Apple Team ID: $SIGNED_TEAM_ID (expected $SOA_EXPECTED_TEAM_ID)" >&2
+  exit 1
+fi
+
 APP_NOTARY_ZIP="$TEMP_ROOT/soa-launcher-macos.zip"
 ditto -c -k --keepParent "$APP" "$APP_NOTARY_ZIP"
 "$SCRIPT_DIR/notarize.sh" "$APP_NOTARY_ZIP"
@@ -155,7 +157,7 @@ spctl --assess --type execute --verbose=4 "$APP"
 rm -f "$GENERATED_DMG" "$DMG"
 (
   cd "$BUILD_DIR"
-  cpack -G DragNDrop -C "$BUILD_TYPE" --verbose
+  cpack --config "$BUILD_DIR/CPackConfig.cmake" -G DragNDrop -C "$BUILD_TYPE" --verbose
 )
 if [ ! -s "$GENERATED_DMG" ]; then
   echo "CPack did not produce the expected DMG: $GENERATED_DMG" >&2
@@ -175,7 +177,9 @@ spctl --assess \
   "$DMG"
 
 "$SCRIPT_DIR/generate-macos-update-metadata.sh" "$VERSION" "$DMG"
-"$SCRIPT_DIR/verify-release.sh" \
+SOA_EXPECTED_TEAM_ID="$SIGNED_TEAM_ID" \
+SOA_NETWORK_LIBRARY_NAME="$NETWORK_NAME" \
+  bash "$SCRIPT_DIR/verify-release.sh" \
   "$DMG" \
   "$SCRIPT_DIR/manifest.json" \
   "$SCRIPT_DIR/manifest.json.seal" \

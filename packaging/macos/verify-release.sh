@@ -13,6 +13,7 @@ a completed Story of Alicia macOS DMG and its SOA Seal metadata.
 Optional environment variables:
   SOA_OPENSSL                OpenSSL 3 executable
   SOA_EXPECTED_TEAM_ID       Require this Apple Team ID in the app signature
+  SOA_NETWORK_LIBRARY_NAME   Bundled Swift library name (default: libsoa_network.dylib)
   SOA_MACOS_ARCHS            Required architectures (default: x86_64;arm64)
   SOA_MINIMUM_MACOS_VERSION  Expected deployment target (default: 12.0)
 EOF
@@ -35,8 +36,15 @@ HISTORY_SEAL="$5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGING_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OPENSSL_BIN="${SOA_OPENSSL:-$(command -v openssl || true)}"
-REQUIRED_ARCHS="${SOA_MACOS_ARCHS:-x86_64;arm64}"
+REQUIRED_ARCHS="${SOA_MACOS_ARCHS:-${SOA_MACOS_ARCH:-x86_64;arm64}}"
 EXPECTED_MINIMUM_VERSION="${SOA_MINIMUM_MACOS_VERSION:-12.0}"
+NETWORK_LIBRARY_NAME="${SOA_NETWORK_LIBRARY_NAME:-libsoa_network.dylib}"
+case "$NETWORK_LIBRARY_NAME" in
+  ""|*/*)
+    echo "Invalid Swift network library name: $NETWORK_LIBRARY_NAME" >&2
+    exit 1
+    ;;
+esac
 IFS=';' read -r -a ARCH_LIST <<<"$REQUIRED_ARCHS"
 
 if [ ! -s "$DMG" ]; then
@@ -117,8 +125,28 @@ fi
 
 MAIN_EXECUTABLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
 MAIN_EXECUTABLE="$APP/Contents/MacOS/$MAIN_EXECUTABLE_NAME"
-COURIER="$APP/Contents/Frameworks/libsoa_network.dylib"
+COURIER="$APP/Contents/Frameworks/$NETWORK_LIBRARY_NAME"
 AUDIO_HOST="$APP/Contents/Resources/alicia-log-hook/soa-audio-host"
+
+if [ -s "$COURIER" ]; then
+  COURIER_NAME="$(basename "$COURIER")"
+  COURIER_INSTALL_NAME="$(otool -D "$COURIER" | tail -n 1)"
+  if [ "$COURIER_INSTALL_NAME" != "@rpath/$COURIER_NAME" ]; then
+    echo "Unexpected Swift network install name: $COURIER_INSTALL_NAME" >&2
+    exit 1
+  fi
+  if ! otool -L "$MAIN_EXECUTABLE" | grep -F "@rpath/$COURIER_NAME" >/dev/null; then
+    echo "The launcher does not reference the bundled Swift network library through @rpath." >&2
+    exit 1
+  fi
+fi
+
+for hook_artifact in SoaAliciaLogInjector.exe SoaAliciaLogHook.dll README.md MINHOOK_LICENSE.txt; do
+  if [ ! -s "$APP/Contents/Resources/alicia-log-hook/$hook_artifact" ]; then
+    echo "Required bundled Alicia component is missing: $hook_artifact" >&2
+    exit 1
+  fi
+done
 
 for binary in "$MAIN_EXECUTABLE" "$COURIER" "$AUDIO_HOST"; do
   if [ ! -s "$binary" ]; then
@@ -163,7 +191,20 @@ while IFS= read -r -d '' item; do
         BAD_DEPENDENCIES=1
         ;;
     esac
-  done < <(otool -L "$item" | tail -n +2 | awk '{print $1}')
+  done < <(otool -L "$item" | awk 'NR > 1 && /^[[:space:]]/ { print $1 }')
+
+  while IFS= read -r rpath; do
+    case "$rpath" in
+      ""|@loader_path/*|@executable_path/*|@rpath/*|/System/Library/*|/usr/lib/*) ;;
+      *)
+        printf 'Non-portable runtime search path:\n  %s\n  -> %s\n' "$item" "$rpath" >&2
+        BAD_DEPENDENCIES=1
+        ;;
+    esac
+  done < <(otool -l "$item" | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { awaiting_path = 1; next }
+    awaiting_path && $1 == "path" { print $2; awaiting_path = 0 }
+  ')
 done < <(find "$APP/Contents" -type f -print0)
 if [ "$BAD_DEPENDENCIES" -ne 0 ]; then
   exit 1

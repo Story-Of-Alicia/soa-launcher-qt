@@ -9,7 +9,7 @@ Modified with the help of AI. It has been lightly tested enough to get the
 game running with logging and sound on macOS, but the code has not been
 reviewed thoroughly. Treat it with caution.
 
-## What we added
+## What was added
 
 - cross-compiles for Windows x86 from a macOS or Linux host via MinGW
 - a `LoadLibraryW` injection path that works under Wine
@@ -23,7 +23,7 @@ reviewed thoroughly. Treat it with caution.
 ## The macOS audio backend
 
 On macOS the game had no working sound. Wine's own audio path crashed the game
-outright under Game Porting Toolkit, so there was nothing to tune — it had to be
+outright under Game Porting Toolkit, so there was nothing to tune, it had to be
 avoided rather than configured.
 
 Instead of letting Wine talk to CoreAudio, the hook implements DirectSound
@@ -43,7 +43,7 @@ forces silence instead. Neither applies on Linux, where Wine's own audio works.
 No licence is stated upstream. Included with thanks and the origin recorded. If
 the author would prefer different treatment I will follow whatever they ask.
 
-`minhook/` is MinHook by Tsuda Kageyu, BSD 2-Clause — see its licence file.
+`minhook/` is MinHook by Tsuda Kageyu, BSD 2-Clause - see its licence file.
 
 ## Building
 

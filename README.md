@@ -26,153 +26,48 @@ The launcher can:
 
 The launcher is designed to work for regular players without requiring knowledge of Wine, Proton, prefixes, or command-line tools.
 
-> This project is a launcher only. It does not contain the game itself.
-
 ## Supported platforms
 
-| Platform            | Status                                             |
-|---------------------|----------------------------------------------------|
-| Linux x86_64        | AppImage in releases                               |
-| Linux ARM64         | On the todo list                                   |
-| macOS Apple Silicon | DMG in releases - experimental, requires Rosetta 2 |
-| macOS Intel         | DMG in releases - untested                         |
-| Windows             | Use the original Windows launcher                  |
+> [!Warning]
+> If there is not found any new compatible wine runtime that can provide acceptable game performance
+> then **macOS support will be discontinued in December 2026.**
 
-> [!WARNING]
-> **macOS support is experimental.**
->
-> The macOS build has had far less testing than the Linux build. Expect rough
-> edges, and please report anything you hit.
->
-> The DMG is a universal binary, so the launcher itself runs natively on both
-> Apple Silicon and Intel Macs. **However, it has only been tested on Apple
-> Silicon. Intel Macs have not been tested at all** the build should run, but
-> nobody has confirmed it yet.
->
-> Running the game on macOS also depends on Game Porting Toolkit, which is a
-> compatibility layer with its own limitations. Some things that work on Linux
-> may not work on macOS.
+| Platform | Status |
+|---|---|
+| Linux x86_64 | Supported |
+| Linux ARM64 | Planned |
+| macOS Apple Silicon | Experimental |
+| macOS Intel | Experimental / untested |
+| Windows | Use the original Windows launcher |
 
-## Downloading the launcher
+## Download
 
-Download the newest launcher release from either:
+Download the latest release from:
 
-- The [official Story of Alicia website](https://storyofalicia.com/)
-- The project's [GitHub Releases](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
-
-## Runtime requirements
-
-The launcher manages the game and its prefix, but it still needs a compatible Windows runtime installed on your system.
-
-### What you need, at a glance
-
-| Requirement | Linux + Wine | Linux + Proton (UMU) | macOS                                                  |
-|---|---|---|--------------------------------------------------------|
-| Runtime | Wine | Proton | Apple Silicon: GPTK. Intel: untested, try normal wine? |
-| `umu-launcher` | No | Yes | No                                                     |
-| `winetricks` | Yes, for setup | Usually no | No                                                     |
-| Rosetta 2 | No | No | Apple Silicon only                                     |
-
-Compatible GE/UMU Proton runs Winetricks through UMU. Other Proton builds may require standalone Winetricks.
-
-> [!NOTE]
-> **Known issue: `winetricks` is required more often than it needs to be.**
->
-> The prerequisite check asks for `winetricks` on every platform and with every
-> runtime, including the two cases above where the launcher never actually calls
-> it. That is a bug, not intended behavior.
->
-> It will be fixed in the next release. The current release cannot be changed.
-
-### Linux
-
-Install `winetricks`, then choose one of these runtime options:
-
-- **Wine** - use your distribution's Wine package.
-- **Proton through UMU** - install `umu-launcher` and provide a compatible Proton build. GE-Proton and UMU-Proton builds work best.
-- **Custom runtime** - select an existing Wine-compatible runtime in the launcher.
-
-You do not need to install both Wine and Proton. Package names vary between Linux distributions, so use the packages provided by your distribution whenever possible.
-
-### macOS
-
-**1. Install Rosetta 2 (Apple Silicon only) via the terminal.** Game Porting Toolkit runs the game
-as x86_64 code, so it will not work without it. The launcher itself is universal
-and does not need Rosetta, but the game will not start without it.
-
-```sh
-softwareupdate --install-rosetta --agree-to-license
-```
-
-**2. Install Homebrew and `winetricks` via the terminal.** macOS does not ship `winetricks`, and
-[Homebrew](https://brew.sh/) is the simplest way to get it:
-
-```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-brew install winetricks
-```
-
-**3. Install Game Porting Toolkit.** Use the
-[distribution maintained by Gcenx](https://github.com/Gcenx/game-porting-toolkit/releases).
-This runtime is what actually runs Alicia on macOS, and it is not bundled with
-the launcher, so it has to be installed separately. 
-
-Double clicking the tar.xz opens it with Archive Utility which extracts the app. Afterwards drag the application to /Applications for runtime auto-detection in the launcher. The app can potentially be blocked from running due to macOS complaining that it can't verify that it's not harmful; go to privacy settings, scroll down and then select ''run anyway''.
-
-Follow the requirements and installation notes for the specific Game Porting Toolkit release you download.
-
-## Installing the launcher
-
-### Linux
-
-1. Download the AppImage.
-2. Allow it to run via the terminal:
-
-   ```sh
-   chmod +x <path to Story_Of_Alicia-<version>-x86_64.appimage>
-   ```
-You can drag the appimage in the terminal, it'll put the full path in automatically.
-
-3. Open it via the terminal:
-
-   ```sh
-   <path to Story_Of_Alicia-<version>-x86_64.appimage>
-   ```
-Or double click the appimage
-
-Linux users can choose between Wine, Proton through UMU, or a custom runtime from the launcher.
-
-### macOS
-
-1. Complete the [runtime requirements](#macos) first - Rosetta 2, `winetricks`, and Game Porting Toolkit.
-2. Download the DMG.
-3. Open it and move the launcher to Applications.
-4. Open the launcher.
-
-## Known issues
-If you encounter an error/problem, check [known issues](Known_Issues.md) first if your issue is already known and if it has a solution.
+- [Story of Alicia](https://storyofalicia.com/)
+- [GitHub Releases](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
 
 ## Documentation
 
-- [`BUILDING.md`](docs/BUILDING.md) - building the launcher from source
-- [`CONTRIBUTING.md`](docs/CONTRIBUTING.md) - contributing code, translations, or documentation
-- [`CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md) - persisted launcher configuration
-- [`PLATFORM_LINUX.md`](docs/PLATFORM_LINUX.md) - Linux behavior and packaging
-- [`PLATFORM_MACOS.md`](docs/PLATFORM_MACOS.md) - macOS behavior and packaging
+Setup, configuration, troubleshooting, and build documentation is available in the [project Wiki](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki).
+
+- [Installing the Launcher](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Installing-the-Launcher)
+- [Linux Setup](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Linux-Setup)
+- [macOS Setup](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/macOS-Setup)
+- [Configuration Reference](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Configuration-Reference)
+- [Known Issues](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Known-Issues)
+- [Building on Linux](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-Linux)
+- [Building on macOS](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-macOS)
+
+For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-The Story of Alicia Launcher is licensed under the
-[GNU General Public License version 3](LICENSE).
+The Story of Alicia Launcher is licensed under the [GNU General Public License version 3](LICENSE).
 
-Additional attribution terms permitted under GPLv3 Section 7 apply.
-See [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md).
+Additional attribution terms permitted under GPLv3 Section 7 apply. See [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md).
 
-Story of Alicia branding and project assets are subject to the terms
-described in [BRANDING.md](BRANDING.md).
-
-Contributions are subject to the terms described in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Story of Alicia branding and project assets are subject to [BRANDING.md](BRANDING.md).
 
 ## Acknowledgements
 
