@@ -1,21 +1,18 @@
 # SOA Seal v1
 
-SOA Seal v1 is the signed-document format used for Story of Alicia launcher
-update metadata.
+SOA Seal v1 is what the Story of Alicia launcher uses to sign and verify update metadata.
 
-The cryptographic primitive is standard Ed25519. SOA Seal adds a versioned,
-domain-separated envelope so launcher update signatures cannot be treated as
-plain signatures over arbitrary files.
+It uses standard Ed25519 signatures, but with a few extra things to make sure a signature meant for launcher updates can't be reused for something else.
 
 ## Key files
 
-Create a key with:
+To generate a new key, run:
 
 ```bash
 ./packaging/create-update-key.sh /path/to/private-directory
 ```
 
-The command creates:
+This creates three files:
 
 ```text
 soa-update-key.pem
@@ -23,36 +20,40 @@ soa-update-public-key.hex
 soa-update-key-id.txt
 ```
 
-`soa-update-key.pem` is private. `soa-update-public-key.hex` and the key ID are
-public.
+`soa-update-key.pem` is the private key and must be kept private.
 
-The launcher compiles the 64-character raw public key stored in:
+The public key and key ID can be shared.
+
+The launcher uses the 64-character public key from:
 
 ```text
 packaging/soa-update-public-key.hex
 ```
 
+This key is compiled into the launcher.
+
 ## Key ID
 
-The public key has a human-readable identifier such as:
+Each public key has its own ID, which looks something like this:
 
 ```text
 SOA1-ABCD-1234-5678-90AB-CDEF-1234-5678-90AB
 ```
 
-It is derived as:
+The ID is generated using:
 
 ```text
 hash = SHA256("SOA-SEAL-KEY-ID-V1\0" || raw_ed25519_public_key)
 key_id = "SOA1-" || uppercase_hex(hash[0:16]), grouped every 4 hex characters
 ```
 
-The key ID is not a secret and is not a replacement for the public key. It is
-bound into every SOA Seal signature.
+The key ID isn't secret, and it doesn't replace the public key. It's included in every SOA Seal signature so the launcher can check that the correct key was used.
 
-## Seal sidecar
+## Seal files
 
-A `.seal` file contains exactly four fields:
+Each signed metadata file has a `.seal` file alongside it.
+
+A seal contains exactly four lines:
 
 ```text
 SOA-SEAL-V1
@@ -61,18 +62,18 @@ key=SOA1-ABCD-1234-5678-90AB-CDEF-1234-5678-90AB
 sig=BASE64_ED25519_SIGNATURE
 ```
 
-The last line is a standard 64-byte Ed25519 signature encoded as base64.
+The signature is a standard 64-byte Ed25519 signature encoded in base64.
 
-Allowed document kinds are:
+There are currently two supported document types:
 
 ```text
 manifest  manifest.json
 history   versions.json
 ```
 
-## Signed bytes
+## What gets signed
 
-The signature is made over the following exact byte sequence:
+The signature is generated from these exact bytes:
 
 ```text
 "SOA-SEAL-V1\0"
@@ -81,51 +82,23 @@ The signature is made over the following exact byte sequence:
 || exact_document_bytes
 ```
 
-The JSON is not parsed, normalized, re-indented, or re-encoded before signing.
-The exact bytes served to the launcher are the bytes covered by the signature.
+The JSON files are signed exactly as they are. Nothing is reformatted, parsed, or changed before signing.
 
-Because the document kind is part of the signed bytes, a valid manifest seal
-cannot be reused for release history. Because the key ID is part of the signed
-bytes and is independently derived from the compiled public key, changing the
-key label also invalidates the seal.
+This also means changing even one byte in the JSON will invalidate its signature.
+
+The document type and key ID are included in the signed data too. This prevents a signature for `manifest.json` from being reused for `versions.json`, or someone changing the key ID without invalidating the signature.
 
 ## Verification
 
-The launcher accepts a metadata document only when all of these are true:
+Before accepting update metadata, the launcher checks that:
 
-1. The seal has the exact `SOA-SEAL-V1` four-line structure.
-2. Its document kind matches the file being fetched.
-3. Its `SOA1-...` key ID has the required format.
-4. The key ID exactly matches the ID derived from the launcher's compiled
-   Ed25519 public key.
+1. The seal has the correct `SOA-SEAL-V1` format with exactly four lines.
+2. The document type matches the file being downloaded.
+3. The key ID uses the correct `SOA1-...` format.
+4. The key ID matches the one generated from the public key compiled into the launcher.
 5. The base64 signature decodes to exactly 64 bytes.
-6. Ed25519 verification succeeds over the SOA Seal v1 signed bytes above.
+6. The Ed25519 signature is valid for the signed data.
 
-There is no alternate raw-signature format accepted by the launcher.
+If any of these checks fail, the launcher rejects the metadata.
 
-## Publishing
-
-Linux and macOS each use the same four metadata filenames inside separate
-platform directories:
-
-```text
-manifest.json
-manifest.json.seal
-versions.json
-versions.json.seal
-```
-
-The primary copies live in R2 under `/launcher/linux/` and `/launcher/macos/`.
-The fallback copies live in the `launcher-updates` branch under `linux/` and
-`macos/`.
-
-`packaging/publish-release.sh` verifies all four seals, uploads only the
-AppImage and DMG to the GitHub Release, commits the metadata to the fallback
-branch, and publishes the same package and metadata bytes to R2.
-
-Each metadata generator first retrieves the existing `versions.json` and seal
-from both remote locations. If both copies exist, they must be byte-identical
-and valid. The new release is merged with that history and the list is limited
-to the newest three releases.
-
-R2 package objects stay directly in each platform directory and use versioned filenames. Metadata remains at stable root URLs.
+The launcher only accepts SOA Seal v1 for update metadata. Regular Ed25519 signatures without the SOA Seal format are not supported.
