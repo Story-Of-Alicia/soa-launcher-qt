@@ -43,10 +43,10 @@ The launcher is licensed under the GNU General Public License version 3 with the
 
 By submitting a contribution for inclusion in this repository, you agree that:
 
-- you have the right to submit the contribution;
-- you keep the copyright in your contribution;
-- you license your contribution under the GNU General Public License version 3;
-- the additional terms in `ADDITIONAL_TERMS.md` apply to your contribution;
-- you are not submitting material whose license or ownership prevents it from being distributed under these terms.
+- You have the right to submit the contribution.
+- You keep the copyright in your contribution.
+- You license your contribution under the GNU General Public License version 3.
+- The additional terms in `ADDITIONAL_TERMS.md` apply to your contribution.
+- You are not submitting material whose license or ownership prevents it from being distributed under these terms.
 
 Submitting a contribution does not transfer your copyright to the Story of Alicia project or the repository maintainers.
