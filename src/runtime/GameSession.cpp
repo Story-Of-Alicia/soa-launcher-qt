@@ -909,8 +909,13 @@ namespace soa::runtime
         {
             runtime_.apply_wine_environment(probe_environment_snapshot_);
         }
+#if defined(Q_OS_LINUX)
+        probe_context_valid_ = !probe_prefix_snapshot_.isEmpty() &&
+                               !QStandardPaths::findExecutable(QStringLiteral("ps")).isEmpty();
+#else
         probe_context_valid_ =
             !probe_program_snapshot_.isEmpty() && !probe_prefix_snapshot_.isEmpty();
+#endif
     }
 
     void GameSession::clear_game_probe_context()
@@ -2097,11 +2102,6 @@ namespace soa::runtime
             macos_dll_overrides += QLatin1Char(';') + custom_wine_overrides;
             SPDLOG_INFO("Appending custom Wine DLL overrides: {}",
                         custom_wine_overrides.toStdString());
-        }
-        if (Config::instance().macos_video_decoder_workaround())
-        {
-            macos_dll_overrides += QStringLiteral(";winegstreamer=");
-            SPDLOG_INFO("macOS video decoder workaround enabled: winegstreamer disabled");
         }
         environment.insert(QStringLiteral("WINEDLLOVERRIDES"), macos_dll_overrides);
         SPDLOG_INFO("Effective Alicia WINEDLLOVERRIDES: {}",

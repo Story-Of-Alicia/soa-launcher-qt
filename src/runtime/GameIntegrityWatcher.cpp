@@ -56,7 +56,9 @@ namespace soa::runtime
             const QSet<QString> allowed {
                 path_key(QStringLiteral("version.json")),
                 path_key(QStringLiteral("alice.cfg")),
-                path_key(QStringLiteral("alice.cfg.soa-macos-backup"))
+                path_key(QStringLiteral("alice.cfg.soa-macos-backup")),
+                path_key(QStringLiteral("log/exlog.lde")),
+                path_key(QStringLiteral("_tmp/repair.info"))
             };
 
             const bool dxvk_active = QFileInfo(

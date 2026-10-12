@@ -245,6 +245,8 @@ func unexpectedInstallFiles(installRoot: URL, expectedRelativePaths: [String]) t
         "version.json",
         "alice.cfg",
         "alice.cfg.soa-macos-backup",
+        "log/exlog.lde",
+        "_tmp/repair.info",
     ].map(installPathKey))
 
     let dxvkActive = manager.fileExists(atPath: installRoot.appendingPathComponent("d3d9.dll").path)

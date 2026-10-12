@@ -757,7 +757,7 @@ namespace soa::runtime
         commands.push_back(
             {setup_message,
              umu,
-             {QStringLiteral("createprefix")},
+             {QStringLiteral("")},
              environment,
              managed_proton ? 30 * 60 * 1000 : 5 * 60 * 1000,
              true,

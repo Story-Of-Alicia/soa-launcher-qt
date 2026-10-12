@@ -274,7 +274,15 @@ namespace soa::runtime
                 || command.contains(QStringLiteral("wineconsole"), Qt::CaseInsensitive)
                 || command.contains(QStringLiteral("SoaAliciaLogInjector.exe"),
                                     Qt::CaseInsensitive)
-                || command.contains(QStringLiteral("umu-run"), Qt::CaseInsensitive))
+                || command.contains(QStringLiteral("umu-run"), Qt::CaseInsensitive)
+                || command.contains(QStringLiteral("pressure-vessel-wrap"),
+                                    Qt::CaseInsensitive)
+                || command.contains(QStringLiteral("umu-shim"), Qt::CaseInsensitive)
+                || command.contains(QStringLiteral("pv-adverb"), Qt::CaseInsensitive)
+                || command.contains(QStringLiteral("steam-runtime-launch-client"),
+                                    Qt::CaseInsensitive)
+                || command.contains(QStringLiteral("/proton "), Qt::CaseInsensitive)
+                || command.startsWith(QStringLiteral("proton "), Qt::CaseInsensitive))
             {
                 continue;
             }
