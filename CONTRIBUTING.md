@@ -5,7 +5,7 @@
 
 Thank you for wanting to help with the Story of Alicia Launcher.
 
-If you're new to the codebase, start by reading [Launcher Architecture](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Launcher-Architecture) on the wiki. It maps out the modules and walks you through the main flows.
+If you're new to the codebase, start by reading [Launcher Architecture](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Launcher-Architecture) on the wiki. It maps out the folder structure and walks you through the main flows.
 
 ## Build And Test
 
