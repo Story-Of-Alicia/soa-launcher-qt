@@ -130,7 +130,12 @@ namespace
     QString instance_key()
     {
 #if defined(Q_OS_LINUX)
-        return QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + QStringLiteral("/soa_launcher_") + instance_suffix();
+        const QString runtime_location = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        // Qt returns an empty string when theres no usable runtime folder.
+        // We fallback to the old plain socket name instead, so the launcher still starts.
+        if (runtime_location.isEmpty())
+            return QStringLiteral("soa_launcher_") + instance_suffix();
+        return runtime_location + QStringLiteral("/soa_launcher_") + instance_suffix();
 #else
         return QStringLiteral("soa_launcher_") + instance_suffix();
 #endif
