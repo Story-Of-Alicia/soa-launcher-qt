@@ -129,7 +129,11 @@ namespace
 
     QString instance_key()
     {
+#if defined(Q_OS_LINUX)
+        return QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + QStringLiteral("/soa_launcher_") + instance_suffix();
+#else
         return QStringLiteral("soa_launcher_") + instance_suffix();
+#endif
     }
 
     QString lock_path()
@@ -297,6 +301,10 @@ int main(int argc, char* argv[])
 
     QLocalServer::removeServer(server_key);
     QLocalServer server;
+
+    // Setting socket options so only our own user can connect to the socket
+    server.setSocketOptions(QLocalServer::UserAccessOption);
+
     if (!server.listen(server_key))
     {
         SPDLOG_ERROR("single-instance server failed to listen: {}", server.errorString().toStdString());
