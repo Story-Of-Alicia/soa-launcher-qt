@@ -172,8 +172,14 @@ namespace
         const QByteArray frame = make_frame(url);
         if (socket.write(frame) != frame.size())
             return false;
+
         socket.flush();
-        const bool written = socket.waitForBytesWritten(timeout_ms);
+        bool written = true;
+        // flush() usually sends everything at once on a local socket,
+        // so we use socket.bytesToWrite() to check if theres no more bytes to write
+        // otherwise waitForBytesWritten() returns false and the second launcher thinks the handoff failed.
+        if (socket.bytesToWrite() > 0)
+            written = socket.waitForBytesWritten(timeout_ms);
         socket.disconnectFromServer();
         return written;
     }
