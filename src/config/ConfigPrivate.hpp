@@ -87,19 +87,11 @@ namespace soa::config
             : QStringLiteral("1400x846");
     }
 
+    //! Cleans up the language code. LanguageManager checks if we support it.
     inline QString normalized_language(const QString& value)
     {
         const QString candidate = value.trimmed().toLower().replace(QLatin1Char('_'), QLatin1Char('-'));
-        if (candidate == QStringLiteral("no") || candidate.startsWith(QStringLiteral("no-"))
-            || candidate.startsWith(QStringLiteral("nb-")))
-            return QStringLiteral("nb");
-        if (candidate.startsWith(QStringLiteral("nl-")))
-            return QStringLiteral("nl");
-        if (candidate.startsWith(QStringLiteral("en-")))
-            return QStringLiteral("en");
-        if (candidate == QStringLiteral("nb") || candidate == QStringLiteral("nl"))
-            return candidate;
-        return QStringLiteral("en");
+        return candidate.isEmpty() ? QStringLiteral("en") : candidate;
     }
 
     inline QString normalized_after_launch(const QString& value)
