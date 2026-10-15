@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 soa_seal_public_hex_from_private() {
   local openssl_bin="$1"
   local private_key="$2"

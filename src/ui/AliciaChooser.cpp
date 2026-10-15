@@ -1,3 +1,8 @@
+// Story of Alicia Launcher
+// SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// Additional terms apply, see ADDITIONAL_TERMS.md.
+
 #include "ui/AliciaChooser.hpp"
 #include "ui/Layout.hpp"
 #include "ui/SimpleUtils.hpp"

@@ -1,3 +1,8 @@
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 # Optional Windows x86 Alicia diagnostic hook bundled with launcher releases.
 
 set(SOA_ALICIA_LOG_HOOK_SOURCE_DIR

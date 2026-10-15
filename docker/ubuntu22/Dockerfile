@@ -1,3 +1,8 @@
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 # syntax=docker/dockerfile:1
 
 FROM swift:6.3.2-jammy

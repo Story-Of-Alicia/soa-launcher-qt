@@ -1,3 +1,8 @@
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
 set(SOA_TEST_COMMON_COMPILE_OPTIONS_SOA)

@@ -15,6 +15,11 @@ flags and paths along with the real UI text. This decides which is which.
 apart. It refuses to run unless all of them contain the same source strings.
 """
 
+#  Story of Alicia Launcher
+#  SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+#  SPDX-License-Identifier: GPL-3.0-only
+#  Additional terms apply, see ADDITIONAL_TERMS.md.
+
 from __future__ import annotations
 
 import argparse

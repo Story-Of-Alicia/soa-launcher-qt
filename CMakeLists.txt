@@ -1,3 +1,8 @@
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 cmake_minimum_required(VERSION 3.21.1)
 
 if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)

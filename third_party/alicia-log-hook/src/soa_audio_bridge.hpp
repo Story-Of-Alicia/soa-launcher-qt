@@ -1,4 +1,9 @@
 
+// Story of Alicia Launcher
+// SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// Additional terms apply, see ADDITIONAL_TERMS.md.
+
 #ifndef SOA_AUDIO_BRIDGE_HPP
 #define SOA_AUDIO_BRIDGE_HPP
 

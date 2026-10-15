@@ -1,3 +1,8 @@
+# Story of Alicia Launcher
+# SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# Additional terms apply, see ADDITIONAL_TERMS.md.
+
 add_library(soa_auth STATIC
         AuthHandler.cpp
         ${SOA_INCLUDE_DIR}/auth/AuthHandler.hpp

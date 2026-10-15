@@ -1,3 +1,8 @@
+// Story of Alicia Launcher
+// SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// Additional terms apply, see ADDITIONAL_TERMS.md.
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <mmsystem.h>
