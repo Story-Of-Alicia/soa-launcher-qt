@@ -74,3 +74,4 @@ Story of Alicia branding and project assets are subject to [BRANDING.md](BRANDIN
 
 - Thank you to the SOA development team for the assets and the great help.
 - Thank you Katsu for the beautiful custom art piece in the launcher and testing work.
+- Using [weblate](https://weblate.org/) for translations.
