@@ -1,52 +1,31 @@
-# Translations
+# Translation tools
 
-Translations are grouped into contexts so they are easier to work with in Qt Linguist:
+If you want to translate the launcher, you don't need anything in here. Translations are done on Weblate, read [Translating the Launcher](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Translating-the-Launcher) on the wiki.
 
-- Launcher & Navigation
-- Home & Account
-- Setup & Rules
-- Game Installation & Repair
-- Game Launch & Session
-- Runtime & Compatibility
-- Network & Transfers
-- Launcher Updates
-- Settings
-- About & Credits
-- Logs & Diagnostics
+This folder is for keeping the `.ts` files in `translations/` correct.
 
-Qt Linguist may show these alphabetically.
-
-The launcher checks these contexts when looking up translations. Each source
-string should only exist in one category.
-
-Some strings are created at runtime and cannot be picked up properly by
-`lupdate`. Those are added manually in `src/i18n/TranslationCatalog.cpp`.
-
-Useful commands:
+## filter-translatable.py
 
     tools/i18n/filter-translatable.py --check translations/*.ts
     tools/i18n/filter-translatable.py --missing translations/*.ts
     tools/i18n/filter-translatable.py --list translations/soa_launcher_en.ts
     tools/i18n/filter-translatable.py --prune translations/*.ts
 
-`--missing` checks strings used through `soa::i18n::translate(...)` along with
-the runtime strings registered in `TranslationCatalog.cpp`. It also checks that
-English, Norwegian and Dutch contain the same source strings.
+- `--check` fails if a `.ts` file has stuff that shouldn't be translated, like command-line flags, environment variables, registry data, paths and filenames.
+- `--missing` fails if a string used with `soa::i18n::translate(...)` or added in `src/i18n/TranslationCatalog.cpp` is missing from the `.ts` files. It also checks that all `.ts` files have the same strings in the same contexts.
+- `--list` shows what `--prune` would remove and why.
+- `--prune` removes it from every file you give it, so the files stay the same.
 
-`--prune` removes things that should not be translated, such as command-line
-flags, environment variables, registry data, paths and filenames. Names like
-Wine, Proton and Discord also do not need their own translation, but sentences
-containing them still do.
+The tool won't run if the files don't have the same strings. Run `--check` and `--missing` before merging translation pull requests from Weblate.
 
-English is the source language, so it is not built into a `.qm` file. Keep the
-English translations empty and marked as unfinished.
+## Contexts
 
-Norwegian and Dutch entries also start empty and unfinished. When a translation
-is finished, remove `type="unfinished"` from that entry.
+Strings are grouped into contexts, like Settings or Launcher Updates. The launcher looks up translations in these contexts, so a string should only be in one of them.
 
-## Markup
+## Adding new strings
 
-Try to keep markup out of translated strings. Build the layout in code and only
-translate the actual text.
+`lupdate` can't keep these files updated since most strings are looked up at runtime. So new strings have to be added to every `.ts` file by hand, in the right context, with an empty translation marked `type="unfinished"`. Run `--missing` after to check you got all of them.
 
-Small things like `<b>` and `<br>` are fine when they are part of the sentence.
+Strings that are built at runtime can't be found by the tool, add those in `src/i18n/TranslationCatalog.cpp`.
+
+Please keep markup out of strings. Do the layout in code and only translate the text.

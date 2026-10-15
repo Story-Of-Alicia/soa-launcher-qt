@@ -160,7 +160,7 @@ void LanguageSelection::retranslate()
     const QString prompt = soa::i18n::translate("Don't see your language?").toHtmlEscaped();
     const QString link_text = soa::i18n::translate("Help translate the launcher.").toHtmlEscaped();
     contribute_label->setText(QStringLiteral(
-        "%1 <a href=\"https://github.com/Story-Of-Alicia/soa-launcher-qt/blob/main/CONTRIBUTING.md\" "
+        "%1 <a href=\"https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Translating-the-Launcher\" "
         "style=\"color:#2FB4E0; text-decoration:none; font-weight:700;\">%2</a>")
         .arg(prompt, link_text));
 }
