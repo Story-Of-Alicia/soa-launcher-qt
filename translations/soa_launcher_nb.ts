@@ -17,7 +17,7 @@
     <message>
         <location filename="../src/app/MainWindowEvents.cpp" line="132"/>
         <source>Alicia Is Running</source>
-        <translation>Alicia kjørerr</translation>
+        <translation>Alicia kjører</translation>
     </message>
     <message>
         <location filename="../src/app/MainWindowSetup.cpp" line="160"/>
