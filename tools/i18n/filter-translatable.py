@@ -16,7 +16,7 @@ apart. It refuses to run unless all of them contain the same source strings.
 """
 
 #  Story of Alicia Launcher
-#  SPDX-FileCopyrightText: 2026 Story Of Alicia Contributors
+#  SPDX-FileCopyrightText: 2026 Story of Alicia contributors
 #  SPDX-License-Identifier: GPL-3.0-only
 #  Additional terms apply, see ADDITIONAL_TERMS.md.
 
