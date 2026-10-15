@@ -1,5 +1,6 @@
 # Story of Alicia Launcher
 
+[![Translation status](https://hosted.weblate.org/widget/storyofalicia/svg-badge.svg)](https://hosted.weblate.org/engage/storyofalicia/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-blue.svg)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/Story-Of-Alicia/soa-launcher-qt?label=release&color=success)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Story-Of-Alicia/soa-launcher-qt/total?color=orange)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
