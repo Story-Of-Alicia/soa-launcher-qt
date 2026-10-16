@@ -4,6 +4,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-blue.svg)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/Story-Of-Alicia/soa-launcher-qt?label=release&color=success)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Story-Of-Alicia/soa-launcher-qt/total?color=orange)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
+[![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2Fstoryofalicia%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=Discord&logo=discord&logoColor=white&color=5865F2&cacheSeconds=3600)](https://discord.gg/storyofalicia)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)](#supported-platforms)
 [![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white)](https://www.qt.io/)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
