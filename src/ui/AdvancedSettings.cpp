@@ -25,13 +25,9 @@ namespace aset = soa::ui::layout::advanced_settings;
 
 namespace
 {
-#if defined(Q_OS_MACOS)
-    constexpr int kAdvancedRowCount = 5;
-    constexpr int kDiagnosticRow = 4;
-#else
     constexpr int kAdvancedRowCount = 4;
     constexpr int kDiagnosticRow = 3;
-#endif
+
     constexpr const char* kDiagnosticTitle =
         QT_TRANSLATE_NOOP("Launcher", "DIAGNOSTIC MODE");
     constexpr const char* kDiagnosticLinuxDescription =
@@ -53,12 +49,7 @@ AdvancedSettings::AdvancedSettings(QWidget* parent) : QWidget(parent)
 {
     setup_game_path_option();
     setup_game_args_option();
-#if defined(Q_OS_MACOS)
-    setup_macos_compatibility_option();
-    setup_macos_video_decoder_option();
-#else
     setup_umu_runner_option();
-#endif
     setup_diagnostics_option();
 }
 void AdvancedSettings::setup_game_path_option()
@@ -159,100 +150,6 @@ void AdvancedSettings::setup_game_args_option()
     });
 }
 
-void AdvancedSettings::setup_macos_compatibility_option()
-{
-#if defined(Q_OS_MACOS)
-    const QSize w = window()->size();
-    const int y = aset::row(2, kAdvancedRowCount);
-    soa::ui::simple_utils::make_label_block(
-        this, w, y,
-        "COMPATIBILITY PROFILE",
-        "Normal is recommended. Fallback profiles isolate targeted graphics or audio behavior.");
-
-    const QStringList labels {
-        QStringLiteral("Normal (recommended)"),
-        QStringLiteral("Safe display"),
-        QStringLiteral("Low graphics"),
-        QStringLiteral("Mac GL fallback"),
-        QStringLiteral("Audio isolation (diagnostic)")
-    };
-    const QStringList ids {
-        QStringLiteral("default"),
-        QStringLiteral("safe-display"),
-        QStringLiteral("low-graphics"),
-        QStringLiteral("gl-behind"),
-        QStringLiteral("audio-isolation")
-    };
-
-    auto* dropdown = new ImageDropdown(labels, this);
-    dropdown->setAccessibleName(QStringLiteral("macOS compatibility profile"));
-    dropdown->setAccessibleDescription(
-        QStringLiteral("Select a targeted Wine compatibility profile"));
-    dropdown->move(ls::ctrl_pos(w, y));
-    const int current = ids.indexOf(Config::instance().macos_compatibility_profile());
-    dropdown->set_index(current >= 0 ? current : 0);
-
-    connect(dropdown, &ImageDropdown::changed, this, [ids](const int index)
-    {
-        if (index >= 0 && index < ids.size())
-            Config::instance().set_macos_compatibility_profile(ids[index]);
-    });
-    connect(&Config::instance(), &Config::changed, dropdown, [dropdown, ids]()
-    {
-        const int index = ids.indexOf(
-            Config::instance().macos_compatibility_profile());
-        if (index >= 0)
-            dropdown->set_index(index);
-    });
-#endif
-}
-
-void AdvancedSettings::setup_macos_video_decoder_option()
-{
-#if defined(Q_OS_MACOS)
-    const QSize w = window()->size();
-    const int y = aset::row(3, kAdvancedRowCount);
-
-    soa::ui::simple_utils::make_label_block(
-        this, w, y,
-        "VIDEO DECODER WORKAROUND",
-        "Disables Wine GStreamer to avoid video decoder crashes. Videos that require it may not play.");
-
-    auto* slider = soa::ui::simple_utils::make_flat_button(this);
-    const QRect geometry = ls::slider_rect(w, y);
-    slider->setGeometry(geometry);
-    slider->setIconSize(geometry.size());
-    slider->setAccessibleName(soa::i18n::translate("Video decoder workaround"));
-    slider->setAccessibleDescription(
-        soa::i18n::translate("Disable Wine GStreamer to avoid video decoder crashes"));
-    slider->setProperty("soa_i18n_accessible_name_source",
-                        QStringLiteral("Video decoder workaround"));
-    slider->setProperty("soa_i18n_accessible_description_source",
-                        QStringLiteral("Disable Wine GStreamer to avoid video decoder crashes"));
-
-    const auto paint = [slider, size = geometry.size()](const bool enabled)
-    {
-        const auto& asset = enabled
-            ? soa::ui::assets::button(soa::ui::assets::Button::SliderOn)
-            : soa::ui::assets::button(soa::ui::assets::Button::SliderOff);
-        slider->setIcon(QIcon(asset.normal.scaled(
-            size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
-    };
-
-    paint(Config::instance().macos_video_decoder_workaround());
-    connect(slider, &QPushButton::clicked, this, [paint]()
-    {
-        Config::instance().set_macos_video_decoder_workaround(
-            !Config::instance().macos_video_decoder_workaround());
-        paint(Config::instance().macos_video_decoder_workaround());
-    });
-    connect(&Config::instance(), &Config::changed, slider, [paint]()
-    {
-        paint(Config::instance().macos_video_decoder_workaround());
-    });
-#endif
-}
-
 void AdvancedSettings::setup_diagnostics_option()
 {
     const QSize w = window()->size();
@@ -260,11 +157,7 @@ void AdvancedSettings::setup_diagnostics_option()
 
     soa::ui::simple_utils::make_label_block(
         this, w, y, QString::fromUtf8(kDiagnosticTitle),
-#if defined(Q_OS_MACOS)
-        QString::fromUtf8(kDiagnosticMacDescription));
-#else
         QString::fromUtf8(kDiagnosticLinuxDescription));
-#endif
 
     auto* diagnostic_slider = soa::ui::simple_utils::make_flat_button(this);
     const QRect geometry = ls::slider_rect(w, y);
@@ -305,7 +198,6 @@ void AdvancedSettings::setup_diagnostics_option()
 
 void AdvancedSettings::setup_umu_runner_option()
 {
-#if !defined(Q_OS_MACOS)
     const QSize w = window()->size();
     const int y = aset::row(2, kAdvancedRowCount);
     soa::ui::simple_utils::make_label_block(
@@ -380,5 +272,4 @@ void AdvancedSettings::setup_umu_runner_option()
         if (!umu_path_field->hasFocus())
             umu_path_field->setText(Config::instance().umu_binary());
     });
-#endif
 }

@@ -31,7 +31,6 @@
 
 #include "common/AppPaths.hpp"
 #include "common/Log.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineRegistry.hpp"
 #include "runtime/PrefixInspector.hpp"
 #include "ui/Assets.hpp"
@@ -349,23 +348,11 @@ WineSelectMenu::WineSelectMenu(QWidget* parent) : ModalOverlay(parent)
 
 bool WineSelectMenu::proton_mode() const
 {
-#if defined(Q_OS_MACOS)
-    return false;
-#else
     return Config::instance().setup_runtime_preference() == QStringLiteral("proton");
-#endif
 }
 
 void WineSelectMenu::filter_runtime_family()
 {
-#if defined(Q_OS_MACOS)
-    runtimes.erase(std::remove_if(runtimes.begin(), runtimes.end(),
-                                  [](const cw::WineInstall& runtime)
-                                  {
-                                      return runtime.type == cw::RuntimeType::Proton;
-                                  }),
-                   runtimes.end());
-#else
     const bool proton = proton_mode();
     const QString preference = Config::instance().setup_runtime_preference();
     if (preference == QStringLiteral("wine") || preference == QStringLiteral("proton"))
@@ -397,7 +384,6 @@ void WineSelectMenu::filter_runtime_family()
         }
         runtimes.prepend(managed);
     }
-#endif
 }
 
 void WineSelectMenu::build_ui()
@@ -427,11 +413,7 @@ void WineSelectMenu::build_ui()
 
     rescan_button = make_asset_button(
         soa::ui::assets::Button::Cancel, QStringLiteral("Rescan"));
-#if defined(Q_OS_MACOS)
-    const QString add_runtime_text = QStringLiteral("Add Wine…");
-#else
     const QString add_runtime_text = QStringLiteral("Add Runtime…");
-#endif
     browse_button = make_asset_button(
         soa::ui::assets::Button::Cancel, add_runtime_text);
     continue_button = make_asset_button(
@@ -444,17 +426,9 @@ void WineSelectMenu::build_ui()
     continue_button->setEnabled(false);
     connect(continue_button, &QAbstractButton::clicked, this, &WineSelectMenu::confirm);
 
-#if defined(Q_OS_MACOS)
-    rosetta_button = make_asset_button(
-        soa::ui::assets::Button::Cancel, QStringLiteral("Request Rosetta…"));
-    rosetta_button->setAccessibleName(QStringLiteral("Request Rosetta installation"));
-    connect(rosetta_button, &QAbstractButton::clicked, this, &WineSelectMenu::request_rosetta);
-#endif
-
     close_button->raise();
     rescan_button->raise();
     browse_button->raise();
-    if (rosetta_button) rosetta_button->raise();
     continue_button->raise();
 }
 
@@ -474,21 +448,11 @@ void WineSelectMenu::populate()
     for (int i = 0; i < runtimes.size(); ++i)
     {
         const cw::WineInstall& wi = runtimes[i];
-#if defined(Q_OS_MACOS)
-        const QString type = QStringLiteral("Wine");
-#else
         const QString type = wi.type == cw::RuntimeType::Proton
             ? QStringLiteral("Proton") : QStringLiteral("Wine");
-#endif
         QString details = wi.version.isEmpty()
             ? soa::i18n::translate(wi.issue) : soa::i18n::translate(wi.version);
         if (details.isEmpty()) details = soa::i18n::translate("Capability probe failed");
-        if (wi.requires_rosetta)
-        {
-            details += wi.rosetta_available
-                ? soa::i18n::translate(" · Rosetta ready")
-                : soa::i18n::translate(" · Rosetta required");
-        }
         const QString architecture = wi.architectures.isEmpty()
             ? soa::i18n::translate("unknown architecture") : wi.architectures;
         const QString name = soa::i18n::translate(wi.name);
@@ -508,25 +472,15 @@ void WineSelectMenu::populate()
 
     if (runtimes.isEmpty())
     {
-#if defined(Q_OS_MACOS)
-        const QString missingText = QStringLiteral(
-            "No usable Wine installation was found. Install Wine or add a Wine app, executable, or folder.");
-#else
         const QString missingText = proton_mode()
             ? QStringLiteral("No installed Proton versions were found. You can let the launcher install Proton automatically instead.")
             : QStringLiteral("No usable Wine installations were found on this system.");
-#endif
-#if defined(Q_OS_MACOS)
-        const QString emptyText =
-            scanning ? soa::i18n::translate("Scanning Wine installations…")
-                     : soa::i18n::translate(missingText);
-#else
         const QString emptyText =
             scanning ? soa::i18n::translate(proton_mode()
                            ? QStringLiteral("Scanning Proton installations…")
                            : QStringLiteral("Scanning Wine installations…"))
                      : soa::i18n::translate(missingText);
-#endif
+
         auto* empty = new QLabel(emptyText, content);
         empty->setStyleSheet(empty_style(window()->size()));
         QFont empty_font = soa::ui::assets::fonts[soa::ui::assets::Font::Inter];
@@ -557,14 +511,6 @@ void WineSelectMenu::start_scan()
     detector->setFuture(QtConcurrent::run([]()
     {
         QVector<cw::WineInstall> found = cw::WineRegistry::scan();
-#if defined(Q_OS_MACOS)
-        found.erase(std::remove_if(found.begin(), found.end(),
-                                   [](const cw::WineInstall& runtime)
-                                   {
-                                       return runtime.type == cw::RuntimeType::Proton;
-                                   }),
-                    found.end());
-#endif
         return found;
     }));
 }
@@ -586,42 +532,11 @@ void WineSelectMenu::rescan()
 
 void WineSelectMenu::browse_runtime()
 {
-#if defined(Q_OS_MACOS)
-    const int selection = LauncherDialog::choose(
-        this,
-        LauncherDialog::Tone::Question,
-        QStringLiteral("Add Wine"),
-        QStringLiteral("Select a Wine application, executable, or installation folder."),
-        {
-            {QStringLiteral("Cancel"), LauncherDialog::Cancelled,
-             LauncherDialog::ActionStyle::Neutral, true},
-            {QStringLiteral("Select Wine Folder"), LauncherDialog::Primary,
-             LauncherDialog::ActionStyle::Primary, false},
-            {QStringLiteral("Select Wine App or Executable"), LauncherDialog::Secondary,
-             LauncherDialog::ActionStyle::Primary, false}
-        });
-
-    QString path;
-    if (selection == LauncherDialog::Primary)
-        path = QFileDialog::getExistingDirectory(
-            this, soa::i18n::translate("Select Wine Folder"));
-    else if (selection == LauncherDialog::Secondary)
-        path = QFileDialog::getOpenFileName(
-            this,
-            soa::i18n::translate("Select Wine App or Executable"),
-            QStringLiteral("/Applications"),
-            QStringLiteral("%1 (*.app);;%2 (*)")
-                .arg(soa::i18n::translate("Applications"),
-                     soa::i18n::translate("All Files")));
-    else
-        return;
-#else
     const QString path = proton_mode()
         ? QFileDialog::getExistingDirectory(
               this, soa::i18n::translate("Select Proton Folder"))
         : QFileDialog::getOpenFileName(
               this, soa::i18n::translate("Select Wine Binary"));
-#endif
     if (path.isEmpty()) return;
 
     cw::WineInstall install;
@@ -632,7 +547,6 @@ void WineSelectMenu::browse_runtime()
                                 error.isEmpty() ? QStringLiteral("The selected runtime could not be used.") : error);
         return;
     }
-#if !defined(Q_OS_MACOS)
     if ((proton_mode() && install.type != cw::RuntimeType::Proton)
         || (!proton_mode() && install.type != cw::RuntimeType::Wine))
     {
@@ -643,43 +557,14 @@ void WineSelectMenu::browse_runtime()
                 : QStringLiteral("Choose a Wine installation for the Wine setup."));
         return;
     }
-#endif
+
     runtimes.append(install);
     populate();
     select_row(runtimes.size() - 1);
 }
 
-void WineSelectMenu::request_rosetta()
-{
-#if defined(Q_OS_MACOS)
-    const bool confirmed = LauncherDialog::confirm(
-        this,
-        LauncherDialog::Tone::Question,
-        QStringLiteral("Install Rosetta"),
-        QStringLiteral("Some Wine applications are built for Intel Macs. macOS may now show its Rosetta installation prompt. Continue?"),
-        QStringLiteral("Continue"),
-        QStringLiteral("Cancel"));
-    if (!confirmed) return;
-    if (!cw::macos::request_rosetta_install_prompt())
-    {
-        LauncherDialog::warning(this, QStringLiteral("Rosetta Request Failed"),
-                                QStringLiteral("macOS could not start the Rosetta installation request."));
-        return;
-    }
-    LauncherDialog::information(this, QStringLiteral("Rosetta"),
-                                QStringLiteral("Complete the macOS prompt, then press Rescan."));
-#endif
-}
-
 void WineSelectMenu::update_runtime_status()
 {
-#if defined(Q_OS_MACOS)
-    const bool rosetta = cw::macos::rosetta_is_available();
-    runtime_status->setText(soa::i18n::translate("Rosetta: %1")
-        .arg(rosetta ? soa::i18n::translate("ready")
-                     : soa::i18n::translate("not detected")));
-    if (rosetta_button) rosetta_button->setVisible(!rosetta);
-#else
     const bool tricks = cw::winetricks_available();
     if (proton_mode())
     {
@@ -703,7 +588,6 @@ void WineSelectMenu::update_runtime_status()
             ? soa::i18n::translate("winetricks: ready")
             : soa::i18n::translate("winetricks: not found"));
     }
-#endif
 }
 
 bool WineSelectMenu::host_winetricks_required(const cw::WineInstall& runtime) const
@@ -746,11 +630,6 @@ void WineSelectMenu::confirm()
 
     config.begin_update();
     config.set_wine_binary(wi.path);
-#if defined(Q_OS_MACOS)
-    config.set_setup_runtime_preference(QStringLiteral("wine"));
-    config.set_use_dxvk(false);
-    config.set_wine_arch(QStringLiteral("win64"));
-#else
     if (wi.type == cw::RuntimeType::Proton)
     {
         config.set_setup_runtime_preference(QStringLiteral("proton"));
@@ -761,7 +640,7 @@ void WineSelectMenu::confirm()
     {
         config.set_setup_runtime_preference(QStringLiteral("wine"));
     }
-#endif
+
     config.set_runtime_selected(true);
     config.end_update();
 
@@ -780,12 +659,9 @@ void WineSelectMenu::paint_content(QPainter& painter)
     title_font.setWeight(QFont::Black);
     painter.setFont(title_font);
     painter.setPen(soa::ui::colors::k_text_maroon);
-#if defined(Q_OS_MACOS)
-    const QString title = QStringLiteral("SELECT RUNTIME");
-#else
+
     const QString title = proton_mode() ? QStringLiteral("SELECT PROTON")
                                         : QStringLiteral("SELECT WINE");
-#endif
     painter.drawText(runtime_local_rect(w, {30, 34, 640, 38}), Qt::AlignCenter,
                      soa::i18n::translate(title));
 
@@ -794,13 +670,11 @@ void WineSelectMenu::paint_content(QPainter& painter)
     body_font.setWeight(QFont::Medium);
     painter.setFont(body_font);
     painter.setPen(soa::ui::colors::k_text_body);
-#if defined(Q_OS_MACOS)
-    const QString text = QStringLiteral("Choose the Wine installation used to run the game.");
-#else
+
     const QString text = proton_mode()
         ? QStringLiteral("Let the launcher manage UMU-Proton, or choose a Proton installation already on this computer.")
         : QStringLiteral("Choose the Wine installation used to run the game.");
-#endif
+
     painter.drawText(runtime_local_rect(w, {68, 88, 564, 46}),
                      Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
                      soa::i18n::translate(text));
@@ -830,21 +704,8 @@ void WineSelectMenu::relayout()
     status_font.setWeight(QFont::Medium);
     runtime_status->setFont(status_font);
 
-    const int gap = soa::ui::layout::scaled(10, w);
     const QRect status_row = runtime_local_rect(w, {46, 398, 608, 42});
-    if (rosetta_button && !rosetta_button->isHidden())
-    {
-        const int rosetta_width = soa::ui::layout::scaled(190, w);
-        runtime_status->setGeometry(status_row.adjusted(0, 0, -rosetta_width - gap, 0));
-        rosetta_button->setGeometry(status_row.right() - rosetta_width + 1,
-                                    status_row.top(), rosetta_width, status_row.height());
-    }
-    else
-    {
-        runtime_status->setGeometry(status_row);
-        if (rosetta_button)
-            rosetta_button->setGeometry(QRect{});
-    }
+    runtime_status->setGeometry(status_row);
 
     const QRect buttons = runtime_local_rect(w, {46, 454, 608, 44});
     const int button_gap = soa::ui::layout::scaled(10, w);

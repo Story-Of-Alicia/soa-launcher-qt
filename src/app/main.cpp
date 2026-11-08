@@ -134,16 +134,12 @@ namespace
 
     QString instance_key()
     {
-#if defined(Q_OS_LINUX)
         const QString runtime_location = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
         // Qt returns an empty string when theres no usable runtime folder.
         // We fallback to the old plain socket name instead, so the launcher still starts.
         if (runtime_location.isEmpty())
             return QStringLiteral("soa_launcher_") + instance_suffix();
         return runtime_location + QStringLiteral("/soa_launcher_") + instance_suffix();
-#else
-        return QStringLiteral("soa_launcher_") + instance_suffix();
-#endif
     }
 
     QString lock_path()
@@ -216,9 +212,6 @@ namespace
             {
                 if (auto* widget = qobject_cast<QWidget*>(receiver))
                 {
-#if defined(Q_OS_MACOS)
-                    widget->setAttribute(Qt::WA_MacShowFocusRect, false);
-#endif
                     const Qt::FocusPolicy policy = widget->focusPolicy();
                     if (policy == Qt::TabFocus || policy == Qt::StrongFocus
                         || policy == Qt::WheelFocus)
@@ -310,7 +303,7 @@ int main(int argc, char* argv[])
     LauncherLog* launcher_log = LauncherLog::instance();
     if (restored_appimage_environment)
         SPDLOG_DEBUG("restored host environment after AppImage Qt bootstrap");
-    SPDLOG_INFO("Running Story Of Alicia for Linux and macOS");
+    SPDLOG_INFO("Running Story Of Alicia for Linux");
     SPDLOG_INFO("Version: {}", SOA_LAUNCHER_VERSION);
     soa::ui::assets::load_all();
     SPDLOG_DEBUG("loaded all assets successfully");

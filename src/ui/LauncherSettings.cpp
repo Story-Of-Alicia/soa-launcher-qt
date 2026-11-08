@@ -35,11 +35,6 @@
 #include <unistd.h>
 
 #include <utility>
-
-#ifdef Q_OS_MACOS
-#include <unistd.h>
-#endif
-
 #ifndef SOA_LAUNCHER_VERSION
 #define SOA_LAUNCHER_VERSION "0.3.0"
 #endif
@@ -52,11 +47,9 @@ namespace
 {
     QString executable_path()
     {
-#ifdef Q_OS_LINUX
         const QString appimage = qEnvironmentVariable("APPIMAGE");
         if (!appimage.isEmpty())
             return appimage;
-#endif
         return QCoreApplication::applicationFilePath();
     }
 
@@ -112,93 +105,9 @@ namespace
         return true;
     }
 
-    QString macos_bundle_path()
-    {
-        QString path = QCoreApplication::applicationFilePath();
-        const qsizetype marker = path.indexOf(QStringLiteral(".app/Contents/MacOS/"));
-        if (marker >= 0)
-            return path.left(marker + 4);
-        return {};
-    }
-
-    bool configure_macos_startup(const bool enabled, QString& error)
-    {
-        const QString directory = QDir::home().filePath(QStringLiteral("Library/LaunchAgents"));
-        const QString path = QDir(directory).filePath(
-            QStringLiteral("com.storyofalicia.launcher.plist"));
-        const QString domain = QStringLiteral("gui/%1").arg(static_cast<qulonglong>(getuid()));
-        if (!enabled)
-        {
-            if (QFile::exists(path))
-                QProcess::execute(QStringLiteral("/bin/launchctl"), {QStringLiteral("bootout"), domain, path});
-            if (!QFile::exists(path) || QFile::remove(path))
-                return true;
-            error = QStringLiteral("The launcher login item could not be removed.");
-            return false;
-        }
-
-        if (!QDir().mkpath(directory))
-        {
-            error = QStringLiteral("The LaunchAgents directory could not be created.");
-            return false;
-        }
-
-        const QString bundle = macos_bundle_path();
-        const QString program = bundle.isEmpty()
-            ? executable_path()
-            : QStringLiteral("/usr/bin/open");
-        QString arguments;
-        if (bundle.isEmpty())
-        {
-            arguments = QStringLiteral("<string>%1</string>")
-                .arg(program.toHtmlEscaped());
-        }
-        else
-        {
-            arguments = QStringLiteral("<string>/usr/bin/open</string><string>%1</string>")
-                .arg(bundle.toHtmlEscaped());
-        }
-
-        const QString contents = QStringLiteral(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
-            "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
-            "<plist version=\"1.0\"><dict>"
-            "<key>Label</key><string>com.storyofalicia.launcher</string>"
-            "<key>ProgramArguments</key><array>%1</array>"
-            "<key>RunAtLoad</key><true/>"
-            "</dict></plist>").arg(arguments);
-
-        QSaveFile file(path);
-        const QByteArray data = contents.toUtf8();
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)
-            || file.write(data) != data.size()
-            || !file.commit())
-        {
-            error = QStringLiteral("The launcher login item could not be written.");
-            return false;
-        }
-
-        QProcess::execute(QStringLiteral("/bin/launchctl"), {QStringLiteral("bootout"), domain, path});
-        if (QProcess::execute(QStringLiteral("/bin/launchctl"),
-                              {QStringLiteral("bootstrap"), domain, path}) != 0)
-        {
-            error = QStringLiteral("The launcher login item was written but could not be activated.");
-            return false;
-        }
-        return true;
-    }
-
     bool configure_startup(const bool enabled, QString& error)
     {
-#ifdef Q_OS_LINUX
         return configure_linux_startup(enabled, error);
-#elif defined(Q_OS_MACOS)
-        return configure_macos_startup(enabled, error);
-#else
-        error = QStringLiteral("Launch on startup is unavailable on this platform.");
-        return false;
-#endif
     }
 
     QString escaped_html(const QString& value)
@@ -450,15 +359,9 @@ void LauncherSettings::start_ping_check()
         finish(false, QStringLiteral("could not start ping"));
     });
 
-#ifdef Q_OS_MACOS
-    process->start(ping, {QStringLiteral("-c"), QStringLiteral("1"),
-                          QStringLiteral("-W"), QStringLiteral("2000"),
-                          QStringLiteral("r2.storyofalicia.com")});
-#else
     process->start(ping, {QStringLiteral("-c"), QStringLiteral("1"),
                           QStringLiteral("-W"), QStringLiteral("2"),
                           QStringLiteral("r2.storyofalicia.com")});
-#endif
 
     QTimer::singleShot(5000, process, [process, finish]()
     {

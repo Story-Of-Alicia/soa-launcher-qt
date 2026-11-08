@@ -32,7 +32,6 @@ private:
     void finish_scan();
     void rescan();
     void browse_runtime();
-    void request_rosetta();
     void relayout();
     void select_row(int index);
     void confirm();
@@ -53,6 +52,5 @@ private:
     QPushButton* close_button {};
     QAbstractButton* rescan_button {};
     QAbstractButton* browse_button {};
-    QAbstractButton* rosetta_button {};
     QAbstractButton* continue_button {};
 };
