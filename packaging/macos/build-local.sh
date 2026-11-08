@@ -139,7 +139,7 @@ cmake \
   -DSOA_REQUIRE_ALICIA_LOG_HOOK=ON \
   -DBUILD_TESTING=ON
 
-cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel
+cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel -- CODE_SIGNING_ALLOWED=NO
 if ctest --test-dir "$BUILD_DIR" -C "$BUILD_TYPE" --output-on-failure; then
   printf 'All local tests passed.\n'
 else
