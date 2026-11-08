@@ -47,6 +47,10 @@ set_target_properties(soa_launcher PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+if(TARGET soa_alicia_log_hook)
+    add_dependencies(soa_launcher soa_alicia_log_hook)
+endif()
+
 set(SOA_TRANSLATION_FILES
         "${SOA_ROOT_DIR}/translations/soa_launcher_nb.ts"
         "${SOA_ROOT_DIR}/translations/soa_launcher_nl.ts"
