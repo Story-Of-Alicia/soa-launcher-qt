@@ -51,6 +51,7 @@ struct ManifestEntry: Codable, Sendable
     let path: String
     let hash: String
     let size: Int
+	let chunks: String?
 }
 
 struct Manifest: Codable, Sendable

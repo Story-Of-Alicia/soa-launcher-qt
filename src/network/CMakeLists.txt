@@ -37,6 +37,8 @@ add_library(soa_network SHARED
         CourierTypes.swift
         CourierABI.swift
         CourierPing.swift
+        CourierChunks.swift
+        FastCDC.swift
         NetworkFoundation.swift
         SwiftHttpClient.swift
         LauncherUpdateService.swift

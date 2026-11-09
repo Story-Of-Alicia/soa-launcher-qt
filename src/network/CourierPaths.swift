@@ -121,7 +121,7 @@ func validateManifest(_ manifest: Manifest) throws -> [ValidatedManifestEntry]
         }
 
         result.append(ValidatedManifestEntry(
-            manifest: ManifestEntry(path: entry.path, hash: hash.lowercased(), size: entry.size),
+            manifest: ManifestEntry(path: entry.path, hash: hash.lowercased(), size: entry.size, chunks: entry.chunks),
             relativePath: relative,
             collisionKey: key))
     }
