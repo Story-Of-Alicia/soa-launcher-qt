@@ -7,6 +7,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+
+// ignore windows
+#if !os(Windows)
 #if os(Linux)
 import Glibc
 #else
@@ -628,3 +631,16 @@ final class DiscordRpcService: @unchecked Sendable
         return -1
     }
 }
+
+#else
+
+final class DiscordRpcService: @unchecked Sendable
+{
+    init(applicationID: String, processID: Int64, proxyBaseURL: String) {}
+
+    func setLauncherPresence() {}
+    func setGamePresence(username: String) {}
+    func shutdown() {}
+}
+
+#endif

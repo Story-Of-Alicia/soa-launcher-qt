@@ -32,7 +32,6 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
-#include <unistd.h>
 
 #include <utility>
 
@@ -112,6 +111,7 @@ namespace
         return true;
     }
 
+#ifdef Q_OS_MACOS
     QString macos_bundle_path()
     {
         QString path = QCoreApplication::applicationFilePath();
@@ -188,6 +188,7 @@ namespace
         }
         return true;
     }
+#endif
 
     bool configure_startup(const bool enabled, QString& error)
     {

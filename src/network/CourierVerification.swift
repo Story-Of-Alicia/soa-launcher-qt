@@ -6,7 +6,7 @@
 import Foundation
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
 #endif
 
@@ -61,6 +61,10 @@ struct VerifiedFileStamp: Codable, Equatable
 
 func fileStamp(_ path: String) -> VerifiedFileStamp?
 {
+#if os(Windows)
+    // No lstat on Windows, so no stamp, files just get hashed again every time
+    return nil
+#else
     var info = stat()
     guard path.withCString({ lstat($0, &info) }) == 0,
           (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
@@ -75,6 +79,7 @@ func fileStamp(_ path: String) -> VerifiedFileStamp?
         device: UInt64(info.st_dev), inode: UInt64(info.st_ino), size: Int64(info.st_size),
         modifiedSeconds: Int64(modified.tv_sec), modifiedNanoseconds: Int64(modified.tv_nsec),
         changedSeconds: Int64(changed.tv_sec), changedNanoseconds: Int64(changed.tv_nsec))
+#endif
 }
 
 func manifestFileMatches(at local: URL, entry: ValidatedManifestEntry) throws -> Bool
