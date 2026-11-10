@@ -4,7 +4,6 @@
 // Additional terms apply, see ADDITIONAL_TERMS.md.
 
 #include "runtime/PrefixInspector.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineRegistry.hpp"
 
 #include <QDateTime>
@@ -42,7 +41,7 @@ namespace soa::runtime
                     target = proton;
                 else
                 {
-                    const QString wine = macos::resolve_wine_executable(runtime);
+                    const QString wine = WineRegistry::resolve_wine_executable(runtime);
                     if (!wine.isEmpty())
                         target = QFileInfo(wine);
                 }
@@ -142,10 +141,6 @@ namespace soa::runtime
             return recorded;
         if (QFileInfo::exists(QDir(prefix).filePath(QStringLiteral("drive_c/windows/syswow64"))))
             return PrefixArchitecture::Win64;
-#if defined(Q_OS_MACOS)
-        if (prefix_structure_valid(prefix))
-            return PrefixArchitecture::Win64;
-#endif
         return PrefixArchitecture::Unknown;
     }
 
@@ -155,10 +150,6 @@ namespace soa::runtime
         if (architecture(prefix) == PrefixArchitecture::Win64)
         {
             const QString syswow64 = QDir(windows).filePath(QStringLiteral("syswow64"));
-#if defined(Q_OS_MACOS)
-            if (!QDir(syswow64).exists())
-                return QDir(windows).filePath(QStringLiteral("system32"));
-#endif
             return syswow64;
         }
         return QDir(windows).filePath(QStringLiteral("system32"));
@@ -268,13 +259,6 @@ namespace soa::runtime
                                                   const bool request_dxvk)
     {
         QStringList packages;
-#if defined(Q_OS_MACOS)
-        Q_UNUSED(proton);
-        Q_UNUSED(request_dxvk);
-        Q_UNUSED(prefix);
-
-
-#else
         if (!component_exists(prefix, QStringLiteral("d3dx9_43.dll")))
             packages << QStringLiteral("d3dx9");
         if (!component_exists(prefix, QStringLiteral("d3dcompiler_47.dll")))
@@ -287,7 +271,6 @@ namespace soa::runtime
         }
         if (!proton && request_dxvk && !dxvk_installed(prefix))
             packages << dxvk_winetricks_verb();
-#endif
         packages.removeDuplicates();
         return packages;
     }

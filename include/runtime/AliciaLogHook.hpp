@@ -20,7 +20,6 @@ namespace soa::runtime
             QString injector_windows_path;
             QString log_host_path;
             QString log_windows_path;
-            QString audio_host_host_path;
             QString failure;
         };
 

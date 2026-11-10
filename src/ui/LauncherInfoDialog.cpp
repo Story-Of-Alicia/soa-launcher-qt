@@ -260,14 +260,14 @@ void LauncherInfoDialog::retranslate()
     {
         setWindowTitle(translate("About Story of Alicia Launcher"));
         title_label->setText(QStringLiteral("Story of Alicia Launcher"));
-        subtitle_label->setText(translate("The official launcher for Linux and macOS."));
+        subtitle_label->setText(translate("The official launcher for Linux."));
         badge_label->setText(translate("VERSION %1 · QT %2")
             .arg(QApplication::applicationVersion(), QString::fromLatin1(qVersion())));
         info_label->setText(QStringLiteral("<b>%1</b><br>%2<br><br><b>%3</b><br>%4")
             .arg(translate("Everything in one place"),
                  translate("Install, update, verify, repair, and launch both supported Story of Alicia game profiles."),
-                 translate("Linux and macOS"),
-                 translate("Linux supports Wine and Proton. macOS supports Wine.")));
+                 translate("Linux"),
+                 translate("Linux supports Wine and Proton.")));
     }
     else
     {

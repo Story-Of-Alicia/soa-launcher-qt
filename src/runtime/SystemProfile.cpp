@@ -16,8 +16,6 @@
 #include <QSysInfo>
 #include <QtGlobal>
 
-#include "runtime/MacWineRuntime.hpp"
-
 namespace soa::runtime
 {
     namespace
@@ -53,8 +51,6 @@ namespace soa::runtime
         GpuVendor vendor_from_text(const QString& text)
         {
             const QString lower = text.toLower();
-            if (lower.contains(QStringLiteral("apple")))
-                return GpuVendor::Apple;
             if (lower.contains(QStringLiteral("nvidia")) || lower.contains(QStringLiteral("10de")))
                 return GpuVendor::Nvidia;
             if (lower.contains(QStringLiteral("amd")) || lower.contains(QStringLiteral("ati"))
@@ -70,7 +66,6 @@ namespace soa::runtime
         {
             switch (vendor)
             {
-                case GpuVendor::Apple: return 4;
                 case GpuVendor::Nvidia: return 3;
                 case GpuVendor::Amd: return 2;
                 case GpuVendor::Intel: return 1;
@@ -78,7 +73,6 @@ namespace soa::runtime
             }
         }
 
-#if defined(Q_OS_LINUX)
         void detect_linux_gpus(SystemProfile& profile)
         {
             const QString lspci = QStandardPaths::findExecutable(QStringLiteral("lspci"));
@@ -138,53 +132,14 @@ namespace soa::runtime
                 || output.contains(QStringLiteral("devicename"))
                 || output.contains(QStringLiteral("gpu"));
         }
-#endif
-
-#if defined(Q_OS_MACOS)
-        void detect_macos_gpus(SystemProfile& profile)
-        {
-            const QString output = run_command(
-                QStringLiteral("/usr/sbin/system_profiler"),
-                {QStringLiteral("SPDisplaysDataType"), QStringLiteral("-detailLevel"),
-                 QStringLiteral("mini")},
-                8000);
-            for (const QString& line : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts))
-            {
-                const QString trimmed = line.trimmed();
-                if (!trimmed.startsWith(QStringLiteral("Chipset Model:"), Qt::CaseInsensitive)
-                    && !trimmed.startsWith(QStringLiteral("Model:"), Qt::CaseInsensitive))
-                    continue;
-                profile.gpu_descriptions.append(trimmed);
-                const GpuVendor candidate = vendor_from_text(trimmed);
-                if (vendor_priority(candidate) > vendor_priority(profile.gpu_vendor))
-                    profile.gpu_vendor = candidate;
-            }
-            if (profile.cpu_architecture == CpuArchitecture::Arm64
-                && profile.gpu_vendor == GpuVendor::Unknown)
-            {
-                profile.gpu_vendor = GpuVendor::Apple;
-                profile.gpu_descriptions.append(QStringLiteral("Apple GPU"));
-            }
-        }
-
-        bool rosetta_probe()
-        {
-            return soa::runtime::macos::rosetta_is_available();
-        }
-#endif
     }
 
     SystemProfile detect_system_profile()
     {
         SystemProfile profile;
         profile.cpu_architecture = current_architecture();
-#if defined(Q_OS_LINUX)
         detect_linux_gpus(profile);
         profile.vulkan_likely = linux_vulkan_likely();
-#elif defined(Q_OS_MACOS)
-        detect_macos_gpus(profile);
-        profile.rosetta_available = rosetta_probe();
-#endif
         return profile;
     }
 }

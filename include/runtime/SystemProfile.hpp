@@ -31,7 +31,6 @@ namespace soa::runtime
         CpuArchitecture cpu_architecture {CpuArchitecture::Unknown};
         QStringList gpu_descriptions;
         bool vulkan_likely {};
-        bool rosetta_available {};
     };
 
     [[nodiscard]] SystemProfile detect_system_profile();

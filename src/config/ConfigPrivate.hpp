@@ -25,7 +25,6 @@
 
 #include "common/Log.hpp"
 #include "credentials/CredentialStore.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineProcess.hpp"
 #include "runtime/WineRegistry.hpp"
 

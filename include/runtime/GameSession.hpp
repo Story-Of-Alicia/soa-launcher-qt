@@ -15,7 +15,7 @@
 #include <optional>
 
 #include "common/GameVersion.hpp"
-#include "runtime/MacLaunchDiagnostics.hpp"
+#include "runtime/LaunchDiagnostics.hpp"
 #include "runtime/ProcessRunner.hpp"
 #include "runtime/WineProcess.hpp"
 
@@ -137,7 +137,7 @@ namespace soa::runtime
         RuntimeLocator& runtime_;
         ProcessRunner& runner_;
         Callbacks callbacks_;
-        MacLaunchDiagnostics diagnostics_;
+        LaunchDiagnostics diagnostics_;
         QProcess* probe_process_ {};
         QTimer* monitor_timer_ {};
         QTimer* probe_timeout_timer_ {};
@@ -163,6 +163,5 @@ namespace soa::runtime
         int probe_failures_ {};
         int missing_probes_ {};
         quint64 generation_ {};
-        bool diagnostic_sample_armed_ {};
     };
 }
