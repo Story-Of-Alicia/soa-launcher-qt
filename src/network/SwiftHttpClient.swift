@@ -7,9 +7,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if os(Linux)
+#if canImport(Glibc)
 import Glibc
-#else
+#elseif canImport(Darwin)
 import Darwin
 #endif
 import Soa_Courier
@@ -283,6 +283,10 @@ final class SwiftHttpClient: @unchecked Sendable
             throw NetworkFailure("Invalid DNS hostname")
         }
 
+#if os(Windows)
+        // getaddrinfo works differently on Windows
+        throw NetworkFailure("DNS lookup is not supported on Windows yet")
+#else
 #if os(Linux)
         let streamType = Int32(SOCK_STREAM.rawValue)
 #else
@@ -327,5 +331,6 @@ final class SwiftHttpClient: @unchecked Sendable
             return ipv6Fallback
         }
         throw NetworkFailure("DNS lookup returned no usable address")
+#endif
     }
 }

@@ -51,6 +51,48 @@ if(TARGET soa_alicia_log_hook)
     add_dependencies(soa_launcher soa_alicia_log_hook)
 endif()
 
+# include important windows dlls (temp fix)
+if(WIN32)
+    add_custom_command(TARGET soa_launcher POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:soa_launcher>
+            $<TARGET_FILE_DIR:soa_launcher>
+            COMMAND_EXPAND_LISTS
+    )
+
+    file(TO_CMAKE_PATH "$ENV{LOCALAPPDATA}" soa_local_app_data)
+    file(GLOB soa_swift_runtime_dirs
+            "${soa_local_app_data}/Programs/Swift/Runtimes/*/usr/bin"
+            "C:/Program Files/Swift/Runtimes/*/usr/bin"
+    )
+    find_path(SOA_SWIFT_RUNTIME_DIR swiftCore.dll
+            HINTS
+            "${soa_local_app_data}/Programs/Swift/Runtimes/${CMAKE_Swift_COMPILER_VERSION}/usr/bin"
+            ${soa_swift_runtime_dirs}
+            ENV PATH
+    )
+    file(GLOB soa_swift_runtime_dlls "${SOA_SWIFT_RUNTIME_DIR}/*.dll")
+    if(soa_swift_runtime_dlls)
+        add_custom_command(TARGET soa_launcher POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${soa_swift_runtime_dlls}
+                $<TARGET_FILE_DIR:soa_launcher>
+        )
+    else()
+        message(WARNING "Swift runtime DLLs not found, the exe will only run where Swift is in PATH")
+    endif()
+
+    find_program(SOA_WINDEPLOYQT windeployqt
+            HINTS "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_BINS}"
+    )
+    if(SOA_WINDEPLOYQT)
+        add_custom_command(TARGET soa_launcher POST_BUILD
+                COMMAND "${SOA_WINDEPLOYQT}" --no-translations --no-compiler-runtime
+                "$<TARGET_FILE:soa_launcher>"
+        )
+    endif()
+endif()
+
 set(SOA_TRANSLATION_FILES
         "${SOA_ROOT_DIR}/translations/soa_launcher_nb.ts"
         "${SOA_ROOT_DIR}/translations/soa_launcher_nl.ts"
