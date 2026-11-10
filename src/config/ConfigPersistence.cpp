@@ -6,33 +6,18 @@
 #include "ConfigPrivate.hpp"
 #include "common/AppPaths.hpp"
 
-#if defined(Q_OS_MACOS)
-#include <QProcess>
-#include <unistd.h>
-#endif
-
 namespace soa::config
 {
     QString Config::file_path() const
     {
-#if defined(Q_OS_MACOS)
-        return QDir(soa::runtime::macos::application_support_root())
-            .filePath(QStringLiteral("state/config.json"));
-#else
         return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
             .filePath(QStringLiteral("config.json"));
-#endif
     }
 
     QString Config::env_path() const
     {
-#if defined(Q_OS_MACOS)
-        return QDir(soa::runtime::macos::application_support_root())
-            .filePath(QStringLiteral("state/.env"));
-#else
         return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
             .filePath(QStringLiteral(".env"));
-#endif
     }
 
     QString Config::recovery_marker_path() const
@@ -515,7 +500,6 @@ namespace soa::config
         const bool fallback_cleared = !QFileInfo::exists(env_path()) || QFile::remove(env_path());
 
         bool startup_entry_removed = true;
-#if defined(Q_OS_LINUX)
         const QString config_root =
             QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
         if (!config_root.isEmpty())
@@ -525,17 +509,6 @@ namespace soa::config
             startup_entry_removed = !QFileInfo::exists(startup_path)
                 || QFile::remove(startup_path);
         }
-#elif defined(Q_OS_MACOS)
-        const QString startup_path = QDir::home().filePath(
-            QStringLiteral("Library/LaunchAgents/com.storyofalicia.launcher.plist"));
-        if (QFileInfo::exists(startup_path))
-        {
-            const QString domain = QStringLiteral("gui/%1").arg(static_cast<qulonglong>(getuid()));
-            (void)QProcess::execute(QStringLiteral("/bin/launchctl"),
-                                    {QStringLiteral("bootout"), domain, startup_path});
-            startup_entry_removed = QFile::remove(startup_path);
-        }
-#endif
 
         const QString data_root = soa::common::paths::application_support_root();
         bool data_removed = true;
