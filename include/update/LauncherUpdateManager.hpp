@@ -104,9 +104,6 @@ namespace soa::update
         void reset_release();
         void install_downloaded_package();
         void install_linux_appimage();
-        void open_macos_installer();
-        void verify_macos_installer_signature();
-        void open_verified_macos_installer();
         void schedule_health_checkpoint();
         [[nodiscard]] QString error_message(soa_launcher_error error_code,
                                             int http_status,
