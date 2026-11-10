@@ -92,11 +92,7 @@ namespace soa::common::log
 
     void init()
     {
-#if defined(Q_OS_MACOS)
-        const QString dir = soa::common::paths::default_log_root();
-#else
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-#endif
         if (!QDir().mkpath(dir))
         {
             std::fprintf(stderr, "log: could not create log directory %s\n", dir.toStdString().c_str());

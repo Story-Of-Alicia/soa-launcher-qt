@@ -13,10 +13,6 @@
 #include <cstring>
 #include <utility>
 
-#ifdef Q_OS_MACOS
-#include <Security/Security.h>
-#endif
-
 namespace soa::credentials
 {
     namespace
@@ -51,7 +47,7 @@ namespace soa::credentials
             return true;
         }
 
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_LINUX)
         QString secret_tool()
         {
             if (qEnvironmentVariableIsEmpty("DBUS_SESSION_BUS_ADDRESS"))
@@ -90,9 +86,7 @@ namespace soa::credentials
 
     bool CredentialStore::available()
     {
-#ifdef Q_OS_MACOS
-        return true;
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
         return !secret_tool().isEmpty();
 #else
         return false;
@@ -101,23 +95,7 @@ namespace soa::credentials
 
     bool CredentialStore::load(Credentials& credentials)
     {
-#ifdef Q_OS_MACOS
-        UInt32 length = 0;
-        void* data = nullptr;
-        SecKeychainItemRef item = nullptr;
-        const OSStatus status = SecKeychainFindGenericPassword(
-            nullptr,
-            static_cast<UInt32>(std::strlen(k_service)), k_service,
-            static_cast<UInt32>(std::strlen(k_account)), k_account,
-            &length, &data, &item);
-        if (item)
-            CFRelease(item);
-        if (status != errSecSuccess || !data)
-            return false;
-        const QByteArray payload(static_cast<const char*>(data), static_cast<qsizetype>(length));
-        SecKeychainItemFreeContent(nullptr, data);
-        return deserialize(payload, credentials);
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
         QByteArray output;
         if (!run_secret_tool(
                 {QStringLiteral("lookup"), QStringLiteral("service"), QString::fromLatin1(k_service),
@@ -136,35 +114,7 @@ namespace soa::credentials
             return clear();
         const QByteArray payload = serialize(credentials);
 
-#ifdef Q_OS_MACOS
-        UInt32 old_length = 0;
-        void* old_data = nullptr;
-        SecKeychainItemRef item = nullptr;
-        const OSStatus found = SecKeychainFindGenericPassword(
-            nullptr,
-            static_cast<UInt32>(std::strlen(k_service)), k_service,
-            static_cast<UInt32>(std::strlen(k_account)), k_account,
-            &old_length, &old_data, &item);
-        if (old_data)
-            SecKeychainItemFreeContent(nullptr, old_data);
-
-        OSStatus status;
-        if (found == errSecSuccess && item)
-        {
-            status = SecKeychainItemModifyAttributesAndData(
-                item, nullptr, static_cast<UInt32>(payload.size()), payload.constData());
-            CFRelease(item);
-        }
-        else
-        {
-            status = SecKeychainAddGenericPassword(
-                nullptr,
-                static_cast<UInt32>(std::strlen(k_service)), k_service,
-                static_cast<UInt32>(std::strlen(k_account)), k_account,
-                static_cast<UInt32>(payload.size()), payload.constData(), nullptr);
-        }
-        return status == errSecSuccess;
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
         QByteArray input = payload;
         input.append('\n');
         return run_secret_tool(
@@ -178,25 +128,7 @@ namespace soa::credentials
 
     bool CredentialStore::clear()
     {
-#ifdef Q_OS_MACOS
-        UInt32 length = 0;
-        void* data = nullptr;
-        SecKeychainItemRef item = nullptr;
-        const OSStatus found = SecKeychainFindGenericPassword(
-            nullptr,
-            static_cast<UInt32>(std::strlen(k_service)), k_service,
-            static_cast<UInt32>(std::strlen(k_account)), k_account,
-            &length, &data, &item);
-        if (data)
-            SecKeychainItemFreeContent(nullptr, data);
-        if (found == errSecItemNotFound)
-            return true;
-        if (found != errSecSuccess || !item)
-            return false;
-        const OSStatus status = SecKeychainItemDelete(item);
-        CFRelease(item);
-        return status == errSecSuccess;
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
         if (secret_tool().isEmpty())
             return false;
 

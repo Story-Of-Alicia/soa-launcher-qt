@@ -18,13 +18,4 @@ target_link_libraries(soa_credentials
         Qt6::Core
 )
 
-if(APPLE)
-    find_library(SOA_SECURITY_FRAMEWORK Security REQUIRED)
-    find_library(SOA_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
-    target_link_libraries(soa_credentials PRIVATE
-            ${SOA_SECURITY_FRAMEWORK}
-            ${SOA_COREFOUNDATION_FRAMEWORK}
-    )
-endif()
-
 soa_apply_build_options(soa_credentials)
