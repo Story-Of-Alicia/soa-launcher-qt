@@ -14,7 +14,6 @@ namespace soa::runtime
         Amd,
         Nvidia,
         Intel,
-        Apple,
         Unknown
     };
 

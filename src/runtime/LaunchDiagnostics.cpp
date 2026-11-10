@@ -312,7 +312,7 @@ namespace soa::runtime
                 else
                 {
                     trace << "No llvm-objdump/objdump was found. "
-                             "Install Xcode Command Line Tools to "
+                             "Install bunutils or llvm to "
                              "append automatic PE disassembly.\n";
                 }
 

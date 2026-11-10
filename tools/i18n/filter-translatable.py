@@ -63,9 +63,8 @@ MACHINE_NAMES = {
 LOG_MARKERS = {
     "Backtrace", "Register dump", "Stack dump", "Unhandled exception",
     "Exception frame is not in stack limits", "[REDACTED]",
-    "Chipset Model:", "Model:", "device name", "vga compatible controller",
+    "Model:", "device name", "vga compatible controller",
     "3d controller", "display controller", "advanced micro devices",
-    "Apple GPU",
 }
 
 
@@ -83,10 +82,9 @@ KEEP = {
 
 NON_TRANSLATABLE_EXACT = {
     "Discord", "Wine", "WINE", "Proton", "PROTON", "UMU", "Winetricks",
-    "Rosetta", "English", "Norsk", "Nederlands", "Story of Alicia",
+    "English", "Norsk", "Nederlands", "Story of Alicia",
     "Story Of Alicia", "Story of Alicia Launcher", "Story Of Alicia Launcher",
-    "Story Of Alicia Playtest", "Game Porting Toolkit",
-    "Homebrew Wine", "WINEESYNC=1", "[earlier command output omitted]",
+    "Story Of Alicia Playtest", "WINEESYNC=1", "[earlier command output omitted]",
     "[earlier detail omitted]\n", "\\1[REDACTED]",
 }
 

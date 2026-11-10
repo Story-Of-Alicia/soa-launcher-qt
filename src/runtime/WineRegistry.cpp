@@ -431,16 +431,6 @@ namespace soa::runtime
 
         QString runtime_name_for_path(const QString& path)
         {
-            const int app_suffix = path.indexOf(QStringLiteral(".app/"), 0, Qt::CaseInsensitive);
-            if (app_suffix >= 0)
-                return QFileInfo(path.left(app_suffix + 4)).baseName();
-            if (path.contains(QStringLiteral("game-porting-toolkit"), Qt::CaseInsensitive))
-                return QStringLiteral("Game Porting Toolkit");
-            if (path.startsWith(QStringLiteral("/opt/homebrew/"))
-                || path.startsWith(QStringLiteral("/usr/local/")))
-            {
-                return QStringLiteral("Homebrew Wine");
-            }
             const QString name = QFileInfo(path).completeBaseName();
             return name.isEmpty() ? QStringLiteral("Wine") : name;
         }
@@ -452,11 +442,7 @@ namespace soa::runtime
                                         QStringLiteral("/dist/bin/wine"),
                                         QStringLiteral("/dist/bin/wine64"),
                                         QStringLiteral("/bin/wine"),
-                                        QStringLiteral("/bin/wine64"),
-                                        QStringLiteral("/Contents/Resources/wine/bin/wine"),
-                                        QStringLiteral("/Contents/Resources/wine/bin/wine64"),
-                                        QStringLiteral("/Contents/SharedSupport/CrossOver/bin/wine"),
-                                        QStringLiteral("/Contents/SharedSupport/CrossOver/bin/wine64") })
+                                        QStringLiteral("/bin/wine64") })
             {
                 const QFileInfo candidate(folder + rel);
                 if (candidate.isFile() && candidate.isExecutable()) return candidate.absoluteFilePath();

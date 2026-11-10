@@ -69,7 +69,7 @@ soa_validate_output_directory() {
     return 1
   fi
   case "$directory/" in
-    "$project_root/src/"*|"$project_root/include/"*|"$project_root/cmake/"*|"$project_root/assets/"*|"$project_root/tests/"*|"$project_root/third_party/"*|"$project_root/tools/"*|"$project_root/translations/"*|"$project_root/docker/"*|"$project_root/packaging/"|"$project_root/packaging/linux/"|"$project_root/packaging/macos/")
+    "$project_root/src/"*|"$project_root/include/"*|"$project_root/cmake/"*|"$project_root/assets/"*|"$project_root/tests/"*|"$project_root/third_party/"*|"$project_root/tools/"*|"$project_root/translations/"*|"$project_root/docker/"*|"$project_root/packaging/"|"$project_root/packaging/linux/")
       printf 'Output directory overlaps launcher source files: %s\n' "$directory" >&2
       return 1
       ;;
