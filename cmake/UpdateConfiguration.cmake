@@ -5,14 +5,7 @@
 
 # Launcher update endpoints, signing key, and remotely hosted launcher documents.
 
-if(APPLE)
-    set(SOA_LAUNCHER_UPDATE_MANIFEST_URL
-            "https://r2.storyofalicia.com/launcher/macos/manifest.json"
-            CACHE STRING "HTTPS URL of the launcher update manifest")
-    set(SOA_LAUNCHER_UPDATE_FALLBACK_MANIFEST_URL
-            "https://raw.githubusercontent.com/Story-Of-Alicia/soa-launcher-qt/launcher-updates/macos/manifest.json"
-            CACHE STRING "Fallback HTTPS URL of the launcher update manifest")
-else()
+if(CMAKE_SYSTEM_NAME STREQUAL Linux)
     set(SOA_LAUNCHER_UPDATE_MANIFEST_URL
             "https://r2.storyofalicia.com/launcher/linux/manifest.json"
             CACHE STRING "HTTPS URL of the launcher update manifest")

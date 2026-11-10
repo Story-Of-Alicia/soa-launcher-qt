@@ -5,12 +5,8 @@
 
 # Global project/build settings shared by every launcher module.
 
-if(NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    message(FATAL_ERROR "soa_launcher currently supports Linux and macOS only")
-endif()
-
-if(NOT CMAKE_GENERATOR MATCHES "^Ninja" AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
-    message(FATAL_ERROR "The Swift Courier library requires the Ninja or Xcode generator")
+if(NOT CMAKE_GENERATOR MATCHES "^Ninja")
+    message(FATAL_ERROR "The Swift Courier library requires the Ninja generator")
 endif()
 
 enable_language(Swift)

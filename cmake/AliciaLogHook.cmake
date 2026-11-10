@@ -46,22 +46,6 @@ if(SOA_MINGW_C_COMPILER AND SOA_MINGW_CXX_COMPILER)
             VERBATIM
     )
 
-    if(APPLE)
-        add_executable(soa_audio_host
-                "${SOA_ALICIA_LOG_HOOK_SOURCE_DIR}/src/soa-audio-host.c"
-        )
-
-        set_target_properties(soa_audio_host PROPERTIES
-                OUTPUT_NAME "soa-audio-host"
-                RUNTIME_OUTPUT_DIRECTORY "${SOA_ALICIA_LOG_HOOK_OUTPUT_DIR}"
-        )
-
-        target_link_libraries(soa_audio_host PRIVATE
-                "-framework AudioToolbox"
-                "-framework CoreFoundation"
-        )
-    endif()
-
     add_custom_target(soa_alicia_log_hook ALL
             DEPENDS
             "${SOA_ALICIA_LOG_HOOK_INJECTOR}"
