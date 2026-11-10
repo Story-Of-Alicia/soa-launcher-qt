@@ -7,9 +7,6 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if canImport(CryptoKit)
-import CryptoKit
-#endif
 import Soa_Courier
 
 struct LauncherUpdateSelection
@@ -394,7 +391,6 @@ final class LauncherUpdateService: @unchecked Sendable
     private func performCheck() async
     {
         let supportedPlatform = platform == "linux-x86_64"
-            || platform == "macos"
 
         guard !currentVersion.isEmpty,
               supportedPlatform,
@@ -552,7 +548,7 @@ final class LauncherUpdateService: @unchecked Sendable
         let rawName = manifest["file_name"] as? String ?? ""
         let name = safeFileName(rawName)
         let urlText = manifest["url"] as? String ?? ""
-        let expectedExtension = platform == "macos" ? ".dmg" : ".appimage"
+        let expectedExtension = ".appimage"
         guard !name.isEmpty,
               rawName == name,
               name.lowercased().hasSuffix(expectedExtension),
@@ -610,7 +606,7 @@ final class LauncherUpdateService: @unchecked Sendable
             version: tag,
             minimumVersion: minimum,
             message: manifest["message"] as? String ?? "",
-            packageKind: platform == "macos" ? "dmg" : "appimage",
+            packageKind: "appimage",
             fileName: name,
             packageURLs: packageURLs,
             sha256: digest,
@@ -893,7 +889,7 @@ final class LauncherUpdateService: @unchecked Sendable
                 "The SOA Seal signature is malformed")
         }
 
-        #if os(Linux) || canImport(CryptoKit)
+        #if os(Linux)
         let keyIDCString = keyID.utf8CString
         let valid = keyIDCString.withUnsafeBufferPointer { keyIDBuffer in
             publicKey.withUnsafeBytes { keyBuffer in

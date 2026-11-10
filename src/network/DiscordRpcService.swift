@@ -7,10 +7,8 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if os(Linux)
+#if canImport(Glibc)
 import Glibc
-#else
-import Darwin
 #endif
 
 struct DiscordPresenceValue: Equatable
@@ -321,11 +319,7 @@ final class DiscordRpcService: @unchecked Sendable
             guard let base = bytes.baseAddress else { return false }
             var offset = 0
             while offset < bytes.count {
-#if os(Linux)
                 let written = send(socketFD, base.advanced(by: offset), bytes.count - offset, Int32(MSG_NOSIGNAL))
-#else
-                let written = send(socketFD, base.advanced(by: offset), bytes.count - offset, 0)
-#endif
                 if written > 0 {
                     offset += written
                     continue
@@ -361,11 +355,7 @@ final class DiscordRpcService: @unchecked Sendable
             source.cancel()
         }
         if socketFD >= 0 {
-#if os(Linux)
             _ = Glibc.close(socketFD)
-#else
-            _ = Darwin.close(socketFD)
-#endif
             socketFD = -1
         }
     }
@@ -591,17 +581,9 @@ final class DiscordRpcService: @unchecked Sendable
             destination.copyBytes(from: bytes)
         }
 
-#if os(Linux)
         let streamType = Int32(SOCK_STREAM.rawValue)
-#else
-        let streamType = SOCK_STREAM
-#endif
         let fd = socket(AF_UNIX, streamType, 0)
         guard fd >= 0 else { return -1 }
-#if !os(Linux)
-        var noSignal: Int32 = 1
-        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
-#endif
         let flags = fcntl(fd, F_GETFL, 0)
         _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
         let result = withUnsafePointer(to: &address) { pointer in
@@ -620,11 +602,7 @@ final class DiscordRpcService: @unchecked Sendable
                 }
             }
         }
-#if os(Linux)
         _ = Glibc.close(fd)
-#else
-        _ = Darwin.close(fd)
-#endif
         return -1
     }
 }
