@@ -4,9 +4,7 @@
 // Additional terms apply, see ADDITIONAL_TERMS.md.
 
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#else
+#if canImport(Glibc)
 import Glibc
 #endif
 
@@ -64,13 +62,8 @@ func fileStamp(_ path: String) -> VerifiedFileStamp?
     var info = stat()
     guard path.withCString({ lstat($0, &info) }) == 0,
           (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
-#if canImport(Darwin)
-    let modified = info.st_mtimespec
-    let changed = info.st_ctimespec
-#else
     let modified = info.st_mtim
     let changed = info.st_ctim
-#endif
     return VerifiedFileStamp(
         device: UInt64(info.st_dev), inode: UInt64(info.st_ino), size: Int64(info.st_size),
         modifiedSeconds: Int64(modified.tv_sec), modifiedNanoseconds: Int64(modified.tv_nsec),

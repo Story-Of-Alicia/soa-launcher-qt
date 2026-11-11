@@ -67,10 +67,6 @@ namespace soa::runtime
 
     bool umu_executable_supports_managed_folders(const QString& path)
     {
-#if defined(Q_OS_MACOS)
-        Q_UNUSED(path);
-        return false;
-#else
         const QFileInfo info(path);
         if (path.isEmpty() || !info.isFile() || !info.isExecutable())
             return false;
@@ -125,7 +121,6 @@ namespace soa::runtime
 
         cache = {path, size, modified, supported};
         return supported;
-#endif
     }
 
     bool umu_supports_managed_folders()

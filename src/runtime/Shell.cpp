@@ -125,13 +125,8 @@ namespace soa::runtime
     {
         if (!is_busy())
             return false;
-#if defined(Q_OS_MACOS)
-        const QString busy_message = QStringLiteral("Another runtime or game process is already "
-                                                    "running.");
-#else
         const QString busy_message = QStringLiteral("Another Wine or game process is already "
                                                     "running.");
-#endif
         fail_user(QStringLiteral("Launcher Busy"), busy_message);
         emit wine_setup_finished(false);
         return true;

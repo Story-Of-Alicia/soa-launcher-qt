@@ -47,16 +47,7 @@ namespace soa::runtime
 
         [[nodiscard]] bool required_components_present(bool proton) const
         {
-#if defined(Q_OS_MACOS)
-            Q_UNUSED(proton);
-
-
-
-
-            return structure_valid && architecture != PrefixArchitecture::Win32;
-#else
             return d3dx9_43 && d3dcompiler_47 && (proton || msvc_runtime);
-#endif
         }
     };
 

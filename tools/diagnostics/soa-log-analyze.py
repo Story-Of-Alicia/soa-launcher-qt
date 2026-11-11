@@ -16,10 +16,6 @@ from collections import Counter, OrderedDict, defaultdict, deque
 from pathlib import Path
 
 EXPECTED_MISSING = {
-    "darwin": {
-        "winepulse.drv", "winealsa.drv", "wineoss.drv", "wineandroid.drv",
-        "wineps.drv", "winex11.drv",
-    },
     "linux": {
         "winecoreaudio.drv", "wineandroid.drv", "winemac.drv", "wineps.drv", "wineoss.drv",
     },
@@ -124,8 +120,6 @@ def scan_wine_log(path: Path, report: Report) -> None:
             match = parse_line(line)
             if not match:
                 report.unparsed += 1
-                if "moltenvk" in line.lower() or "mvk-info" in line.lower():
-                    report.renderer_hints["MoltenVK / Vulkan"] += 1
                 continue
             info = match.groupdict()
             ts = info.get("ts") or f"#{report.total}"
@@ -432,7 +426,6 @@ def main() -> int:
     parser.add_argument("--alicia", type=Path, help="path to alicia.log")
     parser.add_argument("--proton", type=Path, help="path to a Proton steam-*.log")
     parser.add_argument("--timeline", type=Path, help="path to timeline.jsonl")
-    parser.add_argument("--platform", choices=["darwin", "linux", "auto"], default="auto")
     parser.add_argument("--json", type=Path, help="write a machine-readable summary")
     args = parser.parse_args()
     if args.compare_timelines is not None:
@@ -460,8 +453,7 @@ def main() -> int:
     if not wine.is_file() and not (proton is not None and proton.is_file()):
         print(f"error: no Wine or Proton debug log found: {wine}", file=sys.stderr)
         return 2
-    platform = args.platform if args.platform != "auto" else ("darwin" if sys.platform == "darwin" else "linux")
-    report = Report(platform)
+    report = Report("linux")
     if wine.is_file():
         scan_wine_log(wine, report)
     if proton is not None:
@@ -470,12 +462,6 @@ def main() -> int:
             return 2
         if not wine.is_file() or proton.resolve() != wine.resolve():
             scan_wine_log(proton, report)
-    if args.platform == "auto":
-        present = set(report.modules)
-        if "winemac.drv" in present or "winecoreaudio.drv" in present:
-            report.platform = "darwin"
-        elif "winex11.drv" in present or "winealsa.drv" in present:
-            report.platform = "linux"
     alicia_data = scan_alicia_log(alicia) if alicia and alicia.is_file() else None
     timeline_data = scan_timeline(timeline) if timeline and timeline.is_file() else None
     summary = emit(report, alicia_data, timeline_data)

@@ -28,12 +28,6 @@ namespace soa::config
         QString wine_binary() const;
         QString winetricks_binary() const;
         QString umu_binary() const;
-        QString rosetta_x87_path() const;
-
-
-
-
-
 
         QString wine_prefix() const;
         QString proton_compat_data_root() const;
@@ -45,8 +39,6 @@ namespace soa::config
         bool    runtime_selected() const;
         [[nodiscard]] bool runtime_is_proton() const;
         QString wine_args() const;
-        QString macos_compatibility_profile() const;
-        bool    macos_video_decoder_workaround() const;
         bool    diagnostics_enabled() const;
 
         bool    prerequisites_confirmed() const;
@@ -74,7 +66,6 @@ namespace soa::config
         void set_wine_binary(const QString& value);
         void set_winetricks_binary(const QString& value);
         void set_umu_binary(const QString& value);
-        void set_rosetta_x87_path(const QString& value);
         void set_wine_prefix(const QString& value);
         void set_game_install_path(const QString& value);
         void forget_game_install_path();
@@ -82,8 +73,6 @@ namespace soa::config
         void set_use_dxvk(bool value);
         void set_runtime_selected(bool value);
         void set_wine_args(const QString& value);
-        void set_macos_compatibility_profile(const QString& value);
-        void set_macos_video_decoder_workaround(bool value);
         void set_diagnostics_enabled(bool value);
 
         void set_prerequisites_confirmed(bool value);
@@ -112,7 +101,6 @@ namespace soa::config
 
         void reload();
 
-
         void begin_update();
         void end_update();
 
@@ -131,8 +119,6 @@ namespace soa::config
             Missing,
             Unreadable
         };
-
-
 
         LoadOutcome load_document();
         bool load();

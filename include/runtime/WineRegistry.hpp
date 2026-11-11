@@ -24,8 +24,6 @@ namespace soa::runtime
         QString version;
         QString architectures;
         QString issue;
-        bool requires_rosetta {};
-        bool rosetta_available {true};
         bool usable {};
     };
 

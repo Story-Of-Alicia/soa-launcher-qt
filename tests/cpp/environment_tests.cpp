@@ -17,7 +17,6 @@
 
 #include "common/GameVersion.hpp"
 #include "runtime/GameSession.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/PrefixInspector.hpp"
 #include "runtime/ProcessRunner.hpp"
 #include "runtime/RuntimeLocator.hpp"
@@ -107,21 +106,6 @@ private slots:
             soa::runtime::redact_sensitive_text(
                 QStringLiteral("launch -OP [private-token] private-token"), {secret}),
             QStringLiteral("launch -OP [REDACTED] [REDACTED]"));
-    }
-
-    void native_shell_does_not_require_rosetta()
-    {
-#if defined(Q_OS_MACOS)
-        const QString shell = QStandardPaths::findExecutable(QStringLiteral("sh"));
-        QVERIFY(!shell.isEmpty());
-        QVERIFY2(!soa::runtime::macos::executable_requires_rosetta(shell),
-                 qPrintable(QStringLiteral("Native shell was classified as Intel-only: %1 (%2)")
-                                .arg(shell,
-                                     soa::runtime::macos::executable_architectures(shell)
-                                         .join(QLatin1Char(' ')))));
-#else
-        QSKIP("Rosetta classification only applies to macOS.");
-#endif
     }
 
     void process_runner_completes_once()

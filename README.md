@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/github/downloads/Story-Of-Alicia/soa-launcher-qt/total?color=orange)](https://github.com/Story-Of-Alicia/soa-launcher-qt/releases)
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2Fstoryofalicia%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=Discord&logo=discord&logoColor=white&color=5865F2&cacheSeconds=3600)](https://discord.gg/storyofalicia)
 
-The official **Story of Alicia** launcher for Linux and macOS.
+The official **Story of Alicia** launcher for Linux.
 
 ![Launcher screenshot](/docs/soa-launcher-screenshot.png)
 
@@ -18,7 +18,6 @@ The launcher can:
 - Verify and repair damaged files
 - Manage both supported game versions
 - Set up Wine or Proton through UMU on Linux
-- Use Game Porting Toolkit on macOS
 - Sign in through Discord
 - Start the game and collect useful diagnostics when something goes wrong
 
@@ -27,15 +26,14 @@ The launcher is designed to work for regular players without requiring knowledge
 ## Supported platforms
 
 > [!Warning]
-> If there is not found any new compatible wine runtime that can provide acceptable game performance
-> then **macOS support will be discontinued in December 2026.**
+> **macOS** support ends in December. The last macOS version is 1.1.0 and will work for a few months.
 
 | Platform | Status |
 |---|---|
 | Linux x86_64 | Supported |
 | Linux ARM64 | Planned |
-| macOS Apple Silicon | Experimental |
-| macOS Intel | Experimental / untested |
+| macOS Apple Silicon | Discontinues soon in December |
+| macOS Intel | Discontinues soon in December|
 | Windows | Use the original Windows launcher |
 
 ## Download
@@ -51,11 +49,9 @@ Setup, configuration, troubleshooting, and build documentation is available in t
 
 - [Installing the Launcher](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Installing-the-Launcher)
 - [Linux Setup](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Linux-Setup)
-- [macOS Setup](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/macOS-Setup)
 - [Configuration Reference](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Configuration-Reference)
 - [Known Issues](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Known-Issues)
 - [Building on Linux](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-Linux)
-- [Building on macOS](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-macOS)
 
 For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -7,10 +7,8 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if os(Linux)
+#if canImport(Glibc)
 import Glibc
-#else
-import Darwin
 #endif
 import Soa_Courier
 
@@ -283,11 +281,7 @@ final class SwiftHttpClient: @unchecked Sendable
             throw NetworkFailure("Invalid DNS hostname")
         }
 
-#if os(Linux)
         let streamType = Int32(SOCK_STREAM.rawValue)
-#else
-        let streamType = SOCK_STREAM
-#endif
 
         var hints = addrinfo()
         hints.ai_flags = AI_ADDRCONFIG

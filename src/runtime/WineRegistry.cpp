@@ -22,37 +22,24 @@
 
 #include "common/AppPaths.hpp"
 #include "common/Log.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include <spdlog/spdlog.h>
 
 namespace soa::runtime
 {
     QString managed_umu_data_home()
     {
-#if defined(Q_OS_MACOS)
-        return {};
-#else
         return QDir(soa::common::paths::application_support_root())
             .filePath(QStringLiteral("runtimes"));
-#endif
     }
 
     QString managed_proton_identifier()
     {
-#if defined(Q_OS_MACOS)
-        return {};
-#else
         return QDir(managed_umu_data_home())
             .filePath(QStringLiteral("umu/compatibilitytools/UMU-Latest"));
-#endif
     }
 
     bool is_managed_proton(const QString& path)
     {
-#if defined(Q_OS_MACOS)
-        Q_UNUSED(path);
-        return false;
-#else
         const QString trimmed = path.trimmed();
         if (trimmed.isEmpty())
             return false;
@@ -80,14 +67,10 @@ namespace soa::runtime
             QStringLiteral("umu/compatibilitytools")));
         return candidate.startsWith(steam_tools + QDir::separator())
             || candidate.startsWith(umu_tools + QDir::separator());
-#endif
     }
 
     QString resolve_managed_proton_root()
     {
-#if defined(Q_OS_MACOS)
-        return {};
-#else
         const QString data_home = managed_umu_data_home();
         const QString steam_tools = QDir(data_home).filePath(
             QStringLiteral("Steam/compatibilitytools.d"));
@@ -190,7 +173,6 @@ namespace soa::runtime
             return {};
         const QString canonical = best.canonicalFilePath();
         return canonical.isEmpty() ? best.absoluteFilePath() : canonical;
-#endif
     }
     QVector<QString>& WineRegistry::extra_search_dirs()
     {
@@ -201,24 +183,18 @@ namespace soa::runtime
     RuntimeType WineRegistry::identify(const QString& path, bool* ok)
     {
         if (ok) *ok = false;
-#if !defined(Q_OS_MACOS)
         if (is_managed_proton(path))
         {
             if (ok) *ok = umu_available();
             return RuntimeType::Proton;
         }
-#endif
         const QFileInfo info(path);
 
         if (info.isFile())
         {
             const bool executable = info.isExecutable();
             const bool proton = info.fileName().compare(QStringLiteral("proton"), Qt::CaseInsensitive) == 0;
-#if defined(Q_OS_MACOS)
-            if (ok) *ok = executable && !proton;
-#else
             if (ok) *ok = executable;
-#endif
             return proton ? RuntimeType::Proton : RuntimeType::Wine;
         }
 
@@ -227,13 +203,9 @@ namespace soa::runtime
             const QFileInfo proton(QDir(path).filePath(QStringLiteral("proton")));
             if (proton.isFile())
             {
-#if defined(Q_OS_MACOS)
-                if (ok) *ok = false;
-#else
                 if (ok)
                     *ok = proton.isExecutable()
                         && !resolve_wine_executable(info.absoluteFilePath()).isEmpty();
-#endif
                 return RuntimeType::Proton;
             }
 
@@ -250,9 +222,6 @@ namespace soa::runtime
 
     QString WineRegistry::resolve_wine_executable(const QString& path)
     {
-#if defined(Q_OS_MACOS)
-        return macos::resolve_wine_executable(path);
-#else
         const QFileInfo supplied(path);
         if (supplied.isFile() && supplied.isExecutable())
             return supplied.absoluteFilePath();
@@ -272,15 +241,10 @@ namespace soa::runtime
                 return candidate.absoluteFilePath();
         }
         return {};
-#endif
     }
 
     bool WineRegistry::proton_supports_umu_winetricks(const QString& path)
     {
-#if defined(Q_OS_MACOS)
-        Q_UNUSED(path);
-        return false;
-#else
         if (is_managed_proton(path))
             return true;
         if (path.trimmed().isEmpty())
@@ -304,7 +268,6 @@ namespace soa::runtime
         return identity.contains(QStringLiteral("ge-proton"))
             || identity.contains(QStringLiteral("proton-ge"))
             || identity.contains(QStringLiteral("umu-proton"));
-#endif
     }
 
     bool WineRegistry::inspect_path(const QString& path, WineInstall& install,
@@ -315,15 +278,6 @@ namespace soa::runtime
         const RuntimeType type = identify(path, &identified);
         if (type == RuntimeType::Proton)
         {
-#if defined(Q_OS_MACOS)
-            const QString message = QStringLiteral(
-                "This runtime type is not supported by the macOS launcher.");
-            if (error) *error = message;
-            install.issue = message;
-            install.type = RuntimeType::Proton;
-            install.path = path;
-            return false;
-#else
             if (!identified)
             {
                 const QString message = QStringLiteral("The selected Proton runtime is incomplete or not executable.");
@@ -351,27 +305,8 @@ namespace soa::runtime
             install.name = QFileInfo(path).completeBaseName();
             install.usable = true;
             return true;
-#endif
         }
 
-#if defined(Q_OS_MACOS)
-        const auto probe = macos::probe_runtime(path);
-        install.path = path;
-        install.type = RuntimeType::Wine;
-        install.name = QFileInfo(path).completeBaseName();
-        if (install.name.isEmpty())
-            install.name = QStringLiteral("Wine");
-        install.version = probe.version;
-        install.architectures = probe.architectures.join(QLatin1Char(' '));
-        if (install.architectures.isEmpty() && QFileInfo(probe.executable).isFile())
-            install.architectures = QStringLiteral("script or unknown architecture");
-        install.issue = probe.failure;
-        install.requires_rosetta = probe.requires_rosetta;
-        install.rosetta_available = probe.rosetta_available;
-        install.usable = probe.usable;
-        if (!probe.usable && error) *error = probe.failure;
-        return probe.usable;
-#else
         const QString executable = resolve_wine_executable(path);
         if (!identified && executable.isEmpty())
         {
@@ -387,7 +322,6 @@ namespace soa::runtime
         install.architectures = QSysInfo::currentCpuArchitecture();
         install.usable = !executable.isEmpty();
         return install.usable;
-#endif
     }
 
     namespace
@@ -398,22 +332,12 @@ namespace soa::runtime
 
         QString runtime_architectures(const QString& executable)
         {
-#if defined(Q_OS_MACOS)
-            const QStringList architectures = macos::executable_architectures(executable);
-            return architectures.isEmpty()
-                ? QStringLiteral("script or unknown architecture")
-                : architectures.join(QLatin1Char(' '));
-#else
             Q_UNUSED(executable);
             return QSysInfo::currentCpuArchitecture();
-#endif
         }
 
         QString probe_runtime_version(const QString& executable)
         {
-#if defined(Q_OS_MACOS)
-            return macos::probe_runtime(executable).version;
-#else
             QProcess process;
             process.setProcessChannelMode(QProcess::MergedChannels);
             process.start(executable, {QStringLiteral("--version")});
@@ -429,10 +353,7 @@ namespace soa::runtime
             if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0)
                 return {};
             return QString::fromUtf8(process.readAll()).trimmed().left(256);
-#endif
         }
-
-
 
         QString proton_version(const QString& root, const QString& fallback)
         {
@@ -464,10 +385,6 @@ namespace soa::runtime
         void add_install(QVector<WineInstall>& out, QSet<QString>& seen,
                          const QString& path, RuntimeType type, const QString& name)
         {
-#if defined(Q_OS_MACOS)
-            if (type == RuntimeType::Proton)
-                return;
-#endif
             const QFileInfo supplied(path);
             QString executable;
             if (type == RuntimeType::Proton)
@@ -491,18 +408,6 @@ namespace soa::runtime
             seen.insert(key);
 
             WineInstall wi;
-#if defined(Q_OS_MACOS)
-            QString inspectionError;
-            (void)WineRegistry::inspect_path(path, wi, &inspectionError);
-            if (!name.trimmed().isEmpty())
-                wi.name = name;
-            if (wi.issue.isEmpty())
-                wi.issue = inspectionError;
-            if (wi.path.isEmpty())
-                wi.path = path;
-            out.push_back(wi);
-            return;
-#else
             wi.name = name;
             wi.path = path;
             wi.type = type;
@@ -521,22 +426,11 @@ namespace soa::runtime
                 wi.usable = !wi.version.isEmpty();
             }
             out.push_back(wi);
-#endif
         }
 
 
         QString runtime_name_for_path(const QString& path)
         {
-            const int app_suffix = path.indexOf(QStringLiteral(".app/"), 0, Qt::CaseInsensitive);
-            if (app_suffix >= 0)
-                return QFileInfo(path.left(app_suffix + 4)).baseName();
-            if (path.contains(QStringLiteral("game-porting-toolkit"), Qt::CaseInsensitive))
-                return QStringLiteral("Game Porting Toolkit");
-            if (path.startsWith(QStringLiteral("/opt/homebrew/"))
-                || path.startsWith(QStringLiteral("/usr/local/")))
-            {
-                return QStringLiteral("Homebrew Wine");
-            }
             const QString name = QFileInfo(path).completeBaseName();
             return name.isEmpty() ? QStringLiteral("Wine") : name;
         }
@@ -548,11 +442,7 @@ namespace soa::runtime
                                         QStringLiteral("/dist/bin/wine"),
                                         QStringLiteral("/dist/bin/wine64"),
                                         QStringLiteral("/bin/wine"),
-                                        QStringLiteral("/bin/wine64"),
-                                        QStringLiteral("/Contents/Resources/wine/bin/wine"),
-                                        QStringLiteral("/Contents/Resources/wine/bin/wine64"),
-                                        QStringLiteral("/Contents/SharedSupport/CrossOver/bin/wine"),
-                                        QStringLiteral("/Contents/SharedSupport/CrossOver/bin/wine64") })
+                                        QStringLiteral("/bin/wine64") })
             {
                 const QFileInfo candidate(folder + rel);
                 if (candidate.isFile() && candidate.isExecutable()) return candidate.absoluteFilePath();
@@ -599,14 +489,6 @@ namespace soa::runtime
         QStringList runtime_search_dirs()
         {
             QStringList dirs;
-
-#if defined(Q_OS_MACOS)
-            dirs << "/Applications"
-                 << home() + "/Applications"
-                 << home() + "/Library/Application Support/com.isaacmarovitz.Whisky/Libraries"
-                 << "/opt/homebrew/Caskroom"
-                 << "/usr/local/Caskroom";
-#else
             const QStringList steam_roots
             {
                 home() + "/.steam/steam",
@@ -647,41 +529,16 @@ namespace soa::runtime
                  << home() + "/.local/share/bottles/runners"
                  << home() + "/.var/app/com.usebottles.bottles/data/bottles/runners"
                  << "/opt" << "/usr/lib" << "/usr/local";
-#endif
             return dirs;
         }
 
         QStringList direct_binaries()
         {
             QStringList bins;
-#if defined(Q_OS_MACOS)
-            const QStringList application_roots {QStringLiteral("/Applications"),
-                                                  home() + QStringLiteral("/Applications")};
-            bins << "/opt/homebrew/bin/wine"
-                 << "/opt/homebrew/bin/wine64"
-                 << "/usr/local/bin/wine"
-                 << "/usr/local/bin/wine64"
-                 << "/usr/local/opt/game-porting-toolkit/bin/wine64"
-                 << "/opt/homebrew/opt/game-porting-toolkit/bin/wine64";
-            for (const QString& root : application_roots)
-            {
-                bins << root + "/Wine Stable.app/Contents/Resources/wine/bin/wine"
-                     << root + "/Wine Stable.app/Contents/Resources/wine/bin/wine64"
-                     << root + "/Wine Staging.app/Contents/Resources/wine/bin/wine"
-                     << root + "/Wine Staging.app/Contents/Resources/wine/bin/wine64"
-                     << root + "/Wine Devel.app/Contents/Resources/wine/bin/wine"
-                     << root + "/Wine Devel.app/Contents/Resources/wine/bin/wine64"
-                     << root + "/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine"
-                     << root + "/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine64"
-                     << root + "/Whisky.app/Contents/Resources/Libraries/Wine/bin/wine"
-                     << root + "/Whisky.app/Contents/Resources/Libraries/Wine/bin/wine64";
-            }
-#else
             bins << home() + "/.nix-profile/bin/wine"
                  << home() + "/.nix-profile/bin/wine64"
                  << "/run/current-system/sw/bin/wine"
                  << "/run/current-system/sw/bin/wine64";
-#endif
             return bins;
         }
     }
@@ -702,9 +559,6 @@ namespace soa::runtime
 
         for (const QString& dir : runtime_search_dirs())
         {
-#if defined(Q_OS_MACOS)
-            scan_runtime_dir(out, seen, dir);
-#else
             if (dir == "/opt" || dir.startsWith("/usr"))
             {
                 QDir d(dir);
@@ -730,7 +584,6 @@ namespace soa::runtime
             {
                 scan_runtime_dir(out, seen, dir);
             }
-#endif
         }
 
         for (const QString& dir : extra_search_dirs())

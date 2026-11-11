@@ -50,25 +50,7 @@ void WineSettings::setup_dxvk_option()
 {
     const QSize w = window()->size();
     const int y = wset::row(0);
-#if defined(Q_OS_MACOS)
-    soa::ui::simple_utils::make_label_block(this, w, y,
-        "USE DXVK",
-        "Unavailable on macOS. Wine uses its built-in Direct3D renderer.");
 
-    auto* slider = soa::ui::simple_utils::make_flat_button(this);
-    const QRect sr = ls::slider_rect(w, y);
-    slider->setIconSize(sr.size());
-    slider->setGeometry(sr);
-    slider->setIcon(QIcon(
-        soa::ui::assets::button(soa::ui::assets::Button::SliderOff).normal.scaled(
-            sr.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation)));
-    slider->setEnabled(false);
-    slider->setAccessibleName(QStringLiteral("Use DXVK"));
-    slider->setAccessibleDescription(
-        QStringLiteral("Unavailable on macOS"));
-    slider->setToolTip(QStringLiteral(
-        "DXVK requires Vulkan and cannot be enabled by this macOS launcher."));
-#else
     soa::ui::simple_utils::make_label_block(this, w, y,
         "USE DXVK", "Translate Direct3D to Vulkan for better performance.");
 
@@ -93,7 +75,6 @@ void WineSettings::setup_dxvk_option()
     });
     connect(&Config::instance(), &Config::changed, slider,
             [paint]() { paint(Config::instance().use_dxvk()); });
-#endif
 }
 
 void WineSettings::setup_prefix_option()
@@ -138,15 +119,10 @@ void WineSettings::setup_wine_binary_option()
 {
     const QSize w = window()->size();
     const int y = wset::row(2);
-#if defined(Q_OS_MACOS)
-    soa::ui::simple_utils::make_label_block(this, w, y,
-        "CUSTOM WINE",
-        "A Wine app, executable, or installation folder. Blank uses Wine from PATH.");
-#else
+
     soa::ui::simple_utils::make_label_block(this, w, y,
         "CUSTOM WINE / PROTON",
         "A wine binary, or a Proton folder's \"proton\" script. Blank uses system wine.");
-#endif
 
     auto* field = new QLineEdit(this);
     field->setPlaceholderText(soa::i18n::translate("system wine"));
@@ -159,11 +135,10 @@ void WineSettings::setup_wine_binary_option()
     auto apply = [this, field](const QString& raw)
     {
         QString path = raw.trimmed();
-#if !defined(Q_OS_MACOS)
         const QFileInfo info(path);
         if (info.isFile() && info.fileName() == QStringLiteral("proton"))
             path = info.absolutePath();
-#endif
+
         if (!path.isEmpty())
         {
             cw::WineInstall install;
@@ -182,9 +157,6 @@ void WineSettings::setup_wine_binary_option()
         }
         Config::instance().set_wine_binary(path);
         Config::instance().set_runtime_selected(!path.isEmpty());
-#if defined(Q_OS_MACOS)
-        Config::instance().set_setup_runtime_preference(QStringLiteral("wine"));
-#endif
         field->setText(path);
     };
 
@@ -192,48 +164,13 @@ void WineSettings::setup_wine_binary_option()
     browse->setCursor(Qt::PointingHandCursor);
     browse->setStyleSheet(soa::ui::styles::neutral_button(w));
     browse->setGeometry(ls::browse_rect(w, y));
-#if defined(Q_OS_MACOS)
-    browse->setAccessibleName(QStringLiteral("Choose Wine app, executable, or folder"));
-#else
     browse->setAccessibleName(QStringLiteral("Choose Wine binary or Proton script"));
-#endif
+
     connect(browse, &QPushButton::clicked, this, [this, apply]()
     {
-#if defined(Q_OS_MACOS)
-        const int selection = LauncherDialog::choose(
-            this,
-            LauncherDialog::Tone::Question,
-            QStringLiteral("Select Wine"),
-            QStringLiteral("Select a Wine application, executable, or installation folder."),
-            {
-                {QStringLiteral("Cancel"), LauncherDialog::Cancelled,
-                 LauncherDialog::ActionStyle::Neutral, true},
-                {QStringLiteral("Wine Folder"), LauncherDialog::Primary,
-                 LauncherDialog::ActionStyle::Primary, false},
-                {QStringLiteral("Wine App or Executable"), LauncherDialog::Secondary,
-                 LauncherDialog::ActionStyle::Primary, false}
-            });
-        QString path;
-        if (selection == LauncherDialog::Primary)
-            path = QFileDialog::getExistingDirectory(
-                this, soa::i18n::translate("Select Wine Folder"));
-        else if (selection == LauncherDialog::Secondary)
-            path = QFileDialog::getOpenFileName(
-                this,
-                soa::i18n::translate("Select Wine App or Executable"),
-                QStringLiteral("/Applications"),
-                QStringLiteral("%1 (*.app);;%2 (*)")
-                .arg(soa::i18n::translate("Applications"),
-                     soa::i18n::translate("All Files")));
-        else
-            return;
-        if (!path.isEmpty())
-            apply(path);
-#else
         const QString file = QFileDialog::getOpenFileName(
             this, soa::i18n::translate("Select Wine Binary or Proton Script"));
         if (!file.isEmpty()) apply(file);
-#endif
     });
     connect(field, &QLineEdit::editingFinished, this, [field, apply]() { apply(field->text()); });
 }

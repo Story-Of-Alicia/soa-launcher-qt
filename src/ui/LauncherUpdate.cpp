@@ -407,13 +407,8 @@ void LauncherUpdate::retranslate_content()
             message_source = QStringLiteral("Version %1 is available for the launcher.")
                 .arg(shown_version);
         }
-#if defined(Q_OS_MACOS)
-        const QString default_details = QStringLiteral(
-            "The installer will open automatically. The launcher will close.");
-#else
         const QString default_details = QStringLiteral(
             "The AppImage will update and restart automatically.");
-#endif
         details_source = catalogue_mode
             ? QStringLiteral("Installed: %1 · Selected: %2").arg(current_version, shown_version)
             : release_message.isEmpty() ? default_details : release_message;

@@ -249,7 +249,6 @@ func unexpectedInstallFiles(installRoot: URL, expectedRelativePaths: [String]) t
     let allowedTopLevel = Set([
         "version.json",
         "alice.cfg",
-        "alice.cfg.soa-macos-backup",
         "log/exlog.lde",
         "_tmp/repair.info",
     ].map(installPathKey))

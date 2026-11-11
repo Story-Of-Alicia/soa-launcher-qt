@@ -5,10 +5,6 @@
 
 cmake_minimum_required(VERSION 3.21.1)
 
-if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum supported macOS version")
-endif()
-
 project(soa_launcher
         LANGUAGES C CXX Swift
         DESCRIPTION "Story of Alicia Launcher"

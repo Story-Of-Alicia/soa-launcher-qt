@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Additional terms apply, see ADDITIONAL_TERMS.md.
 
-#include "runtime/MacLaunchDiagnostics.hpp"
+#include "runtime/LaunchDiagnostics.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -25,7 +25,6 @@
 #include <thread>
 #include <utility>
 
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/ProcessRunner.hpp"
 #include "config/Config.hpp"
 #include <spdlog/spdlog.h>
@@ -36,8 +35,6 @@ namespace soa::runtime
 
     namespace
     {
-        constexpr int k_host_sample_delay_ms = 40 * 1000;
-
         QString safe_label(QString value)
         {
             value = value.trimmed().toLower();
@@ -97,9 +94,8 @@ namespace soa::runtime
             static const QStringList benign {
                 QStringLiteral("winepulse.drv"),  QStringLiteral("winealsa.drv"),
                 QStringLiteral("wineoss.drv"),    QStringLiteral("wineandroid.drv"),
-                QStringLiteral("winecoreaudio.drv"), QStringLiteral("winex11.drv"),
-                QStringLiteral("wineps.drv"),     QStringLiteral("mscoree.dll"),
-                QStringLiteral("mscoree"),
+                QStringLiteral("winex11.drv"),    QStringLiteral("wineps.drv"),
+                QStringLiteral("mscoree.dll"),    QStringLiteral("mscoree"),
             };
             static const QRegularExpression failed_module(
                 QStringLiteral(R"RX(Failed to load module L"([^"]+)")RX"),
@@ -316,7 +312,7 @@ namespace soa::runtime
                 else
                 {
                     trace << "No llvm-objdump/objdump was found. "
-                             "Install Xcode Command Line Tools to "
+                             "Install bunutils or llvm to "
                              "append automatic PE disassembly.\n";
                 }
 
@@ -374,7 +370,7 @@ namespace soa::runtime
         }
     }
 
-    class MacLaunchDiagnostics::Impl
+    class LaunchDiagnostics::Impl
     {
     public:
         Configuration configuration;
@@ -386,8 +382,6 @@ namespace soa::runtime
         QString session_id;
         QStringList sensitive_values;
         QElapsedTimer clock;
-        std::shared_ptr<std::atomic_uint64_t> sample_generation {
-            std::make_shared<std::atomic_uint64_t>(0)};
         SnapshotProvider snapshot_provider;
         quint64 launch_generation {};
         bool timeline_finished {};
@@ -398,19 +392,18 @@ namespace soa::runtime
         bool seen_exception {};
     };
 
-    MacLaunchDiagnostics::MacLaunchDiagnostics(QObject* parent)
+    LaunchDiagnostics::LaunchDiagnostics(QObject* parent)
         : QObject(parent), d_(std::make_unique<Impl>())
     {
     }
 
-    MacLaunchDiagnostics::~MacLaunchDiagnostics()
+    LaunchDiagnostics::~LaunchDiagnostics()
     {
         reset();
     }
 
-    void MacLaunchDiagnostics::reset()
+    void LaunchDiagnostics::reset()
     {
-        cancel_host_sample();
         if (d_->diagnostic_file.isOpen())
             d_->diagnostic_file.close();
         ++d_->launch_generation;
@@ -431,33 +424,25 @@ namespace soa::runtime
         d_->configuration = {};
     }
 
-    MacLaunchDiagnostics::Configuration
-    MacLaunchDiagnostics::begin(const soa::common::game::GameVersion version, const QString& prefix,
+    LaunchDiagnostics::Configuration
+    LaunchDiagnostics::begin(const soa::common::game::GameVersion version, const QString& prefix,
                                 const QString& game_directory, const QString& executable_path,
                                 const QStringList& sensitive_values,
                                 SnapshotProvider snapshot_provider)
     {
         reset();
         d_->configuration.supported = true;
-#if defined(Q_OS_MACOS)
-        d_->configuration.profile = Config::instance().macos_compatibility_profile();
-#else
         d_->configuration.profile = QStringLiteral("default");
-#endif
         d_->configuration.enabled = Config::instance().diagnostics_enabled();
         d_->configuration.wine_debug = wine_debug_value(d_->configuration.enabled);
 
         RuntimeContext& runtime = d_->configuration.runtime;
         runtime.selector = Config::instance().wine_binary();
-#if defined(Q_OS_MACOS)
-        runtime.executable = macos::resolve_wine_executable(runtime.selector);
-#else
         runtime.executable = QFileInfo(runtime.selector).isAbsolute()
             ? QFileInfo(runtime.selector).absoluteFilePath()
             : QStandardPaths::findExecutable(runtime.selector.isEmpty()
                                                   ? QStringLiteral("wine")
                                                   : runtime.selector);
-#endif
         runtime.source = runtime.selector.trimmed().isEmpty()
             ? QStringLiteral("PATH") : QStringLiteral("selected");
         runtime.usable = QFileInfo(runtime.executable).isExecutable();
@@ -478,11 +463,7 @@ namespace soa::runtime
             return d_->configuration;
         }
 
-#if defined(Q_OS_MACOS)
-        const QString log_root = macos::default_log_root();
-#else
         const QString log_root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-#endif
         const QString diagnostic_directory =
             QDir(log_root).filePath(QStringLiteral("diagnostics"));
         QDir().mkpath(diagnostic_directory);
@@ -504,11 +485,7 @@ namespace soa::runtime
         {
             QTextStream trace(&d_->diagnostic_file);
             trace << "Story of Alicia "
-#if defined(Q_OS_MACOS)
-                  << "macOS"
-#else
                   << "Linux"
-#endif
                   << " launcher diagnostic\n"
                   << "UTC: " << QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs) << "\n"
                   << "Profile: " << d_->configuration.profile << "\n"
@@ -593,7 +570,7 @@ namespace soa::runtime
         return d_->configuration;
     }
 
-    void MacLaunchDiagnostics::observe_output(const QString& chunk)
+    void LaunchDiagnostics::observe_output(const QString& chunk)
     {
         const QString safe = redact_sensitive_text(chunk, d_->sensitive_values);
         if (!d_->seen_create_device &&
@@ -635,7 +612,7 @@ namespace soa::runtime
         }
     }
 
-    void MacLaunchDiagnostics::append_event(const QString& event, const QString& details)
+    void LaunchDiagnostics::append_event(const QString& event, const QString& details)
     {
         if (d_->timeline_path.isEmpty() || d_->timeline_finished)
         {
@@ -669,7 +646,7 @@ namespace soa::runtime
                     event.toStdString(), safe_details.toStdString());
     }
 
-    void MacLaunchDiagnostics::write_effective_command(const QString& program,
+    void LaunchDiagnostics::write_effective_command(const QString& program,
                                                        const QStringList& redacted_arguments,
                                                        const QString& working_directory)
     {
@@ -689,101 +666,7 @@ namespace soa::runtime
         trace.flush();
     }
 
-    void MacLaunchDiagnostics::arm_host_sample(const qint64 windows_pid, const qint64 host_pid)
-    {
-#if defined(Q_OS_MACOS)
-        if (!d_->configuration.enabled || d_->run_directory.isEmpty() ||
-            !d_->sample_generation)
-            return;
-
-        const auto generation_token = d_->sample_generation;
-        const std::uint64_t generation = generation_token->fetch_add(1) + 1;
-        const QString run_directory = d_->run_directory;
-
-        if (d_->diagnostic_file.isOpen())
-        {
-            QTextStream trace(&d_->diagnostic_file);
-            trace << "\n=== DIAGNOSTIC HOST SAMPLE "
-                     "ARMED ===\n"
-                  << "UTC: " << QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs) << "\n"
-                  << "Delay milliseconds: " << k_host_sample_delay_ms << "\n"
-                  << "Generation: " << generation << "\n"
-                  << "Alicia Windows PID: " << windows_pid << "\n"
-                  << "=== END HOST SAMPLE ARM RECORD ===\n";
-            trace.flush();
-            d_->diagnostic_file.flush();
-        }
-
-        SPDLOG_INFO("armed Alicia diagnostic host sample "
-                    "generation {} for {} ms",
-                    generation, k_host_sample_delay_ms);
-
-        std::thread(
-            [generation_token, generation, run_directory, windows_pid, host_pid]()
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(k_host_sample_delay_ms));
-                if (generation_token->load() != generation)
-                    return;
-
-                const QString sample_path =
-                    QDir(run_directory).filePath(QStringLiteral("host-sample.txt"));
-                bool sample_started = false;
-                bool sample_finished = false;
-                int sample_exit_code = -1;
-                if (host_pid > 0 && QFileInfo(QStringLiteral("/usr/bin/sample")).isExecutable())
-                {
-                    QProcess sampler;
-                    sampler.setProcessChannelMode(QProcess::MergedChannels);
-                    sampler.start(QStringLiteral("/usr/bin/sample"),
-                                  {QString::number(host_pid), QStringLiteral("8"),
-                                   QStringLiteral("-file"), sample_path});
-                    sample_started = sampler.waitForStarted(3000);
-                    sample_finished = sample_started && sampler.waitForFinished(15000);
-                    if (!sample_finished && sampler.state() != QProcess::NotRunning)
-                    {
-                        sampler.kill();
-                        sampler.waitForFinished(2000);
-                    }
-                    if (sample_finished)
-                        sample_exit_code = sampler.exitCode();
-                }
-
-                if (generation_token->load() != generation)
-                    return;
-                const QString status_path =
-                    QDir(run_directory).filePath(QStringLiteral("host-sample-status.txt"));
-                QFile file(status_path);
-                if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-                {
-                    return;
-                }
-
-                QTextStream trace(&file);
-                trace << "=== DIAGNOSTIC HOST SAMPLE ===\n"
-                      << "UTC: " << QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)
-                      << "\n"
-                      << "Reason: opt-in delayed live-process "
-                         "sample\n"
-                      << "Alicia Windows PID: " << windows_pid << "\n"
-                      << "Alicia host PID at arm time: " << host_pid << "\n"
-                      << "sample_started=" << sample_started
-                      << " sample_finished=" << sample_finished
-                      << " sample_exit=" << sample_exit_code << "\n"
-                      << "sample_path=" << sample_path << "\n"
-                      << "Writer: isolated worker; main diagnostic "
-                         "stream was not modified\n"
-                      << "=== END HOST SAMPLE ===\n";
-                trace.flush();
-                file.flush();
-            })
-            .detach();
-#else
-        Q_UNUSED(windows_pid);
-        Q_UNUSED(host_pid);
-#endif
-    }
-
-    void MacLaunchDiagnostics::finish(const QString& outcome, const int exit_code,
+    void LaunchDiagnostics::finish(const QString& outcome, const int exit_code,
                                       const bool crashed, const QString& details)
     {
         if (d_->timeline_finished || d_->timeline_path.isEmpty())
@@ -837,11 +720,7 @@ namespace soa::runtime
 
             findings.removeDuplicates();
             stream << "Story of Alicia "
-#if defined(Q_OS_MACOS)
-                   << "macOS"
-#else
                    << "Linux"
-#endif
                    << " launch summary\n"
                    << "session=" << d_->session_id << "\n"
                    << "outcome=" << outcome << "\n"
@@ -863,19 +742,11 @@ namespace soa::runtime
                    << "timeline=timeline.jsonl\n";
             if (QFileInfo(alicia_log).isFile())
                 stream << "alicia_log=alicia.log\n";
-            if (QFileInfo(QDir(d_->run_directory)
-                              .filePath(QStringLiteral("host-sample.txt"))).isFile())
-            {
-                stream << "host_sample=host-sample.txt\n";
-            }
             stream.flush();
         }
-        d_->timeline_finished = true;
-        SPDLOG_INFO("Alicia launch timeline complete: {} outcome={}",
-                    d_->timeline_path.toStdString(), outcome.toStdString());
     }
 
-    void MacLaunchDiagnostics::append_footer_and_analyze(const QString& footer,
+    void LaunchDiagnostics::append_footer_and_analyze(const QString& footer,
                                                          const QString& executable_path)
     {
         if (d_->diagnostic_file.isOpen())
@@ -890,21 +761,13 @@ namespace soa::runtime
         }
     }
 
-    void MacLaunchDiagnostics::close_log()
+    void LaunchDiagnostics::close_log()
     {
         if (d_->diagnostic_file.isOpen())
             d_->diagnostic_file.close();
     }
 
-    void MacLaunchDiagnostics::cancel_host_sample()
-    {
-#if defined(Q_OS_MACOS)
-        if (d_->sample_generation)
-            d_->sample_generation->fetch_add(1);
-#endif
-    }
-
-    bool MacLaunchDiagnostics::trace_has_fatal_failure() const
+    bool LaunchDiagnostics::trace_has_fatal_failure() const
     {
         if (d_->diagnostic_path.isEmpty())
             return false;
@@ -922,63 +785,39 @@ namespace soa::runtime
                tail.contains("page fault on read access");
     }
 
-    qint64 MacLaunchDiagnostics::elapsed_ms() const
+    qint64 LaunchDiagnostics::elapsed_ms() const
     {
         return d_->clock.isValid() ? d_->clock.elapsed() : 0;
     }
 
-    bool MacLaunchDiagnostics::saw_present() const
+    bool LaunchDiagnostics::saw_present() const
     {
         return d_->seen_present;
     }
 
-    bool MacLaunchDiagnostics::saw_draw() const
+    bool LaunchDiagnostics::saw_draw() const
     {
         return d_->seen_draw;
     }
 
-    QString MacLaunchDiagnostics::diagnostic_path() const
+    QString LaunchDiagnostics::diagnostic_path() const
     {
         return d_->diagnostic_path;
     }
 
-    QString MacLaunchDiagnostics::timeline_path() const
+    QString LaunchDiagnostics::timeline_path() const
     {
         return d_->timeline_path;
     }
 
-    QString MacLaunchDiagnostics::run_directory() const
+    QString LaunchDiagnostics::run_directory() const
     {
         return d_->run_directory;
     }
 
-    MacLaunchDiagnostics::Configuration MacLaunchDiagnostics::configuration() const
+    LaunchDiagnostics::Configuration LaunchDiagnostics::configuration() const
     {
         return d_->configuration;
-    }
-
-    bool MacLaunchDiagnostics::profile_uses_virtual_desktop(const QString& profile)
-    {
-        return profile == QStringLiteral("safe-display") ||
-               profile == QStringLiteral("low-graphics") || profile == QStringLiteral("gl-behind");
-    }
-
-    bool MacLaunchDiagnostics::profile_disables_audio(const QString& profile)
-    {
-        Q_UNUSED(profile);
-        return qEnvironmentVariable("SOA_AUDIO_NULL_BACKEND").trimmed()
-            == QStringLiteral("1");
-    }
-
-    QString MacLaunchDiagnostics::opengl_surface_mode(const QString& profile)
-    {
-        return profile == QStringLiteral("gl-behind") ? QStringLiteral("behind") : QString();
-    }
-
-    bool MacLaunchDiagnostics::retina_enabled(const QString& profile)
-    {
-        Q_UNUSED(profile);
-        return false;
     }
 
     namespace
@@ -1023,7 +862,7 @@ namespace soa::runtime
         }
     }
 
-    QString MacLaunchDiagnostics::wine_debug_value(const bool diagnostics_enabled)
+    QString LaunchDiagnostics::wine_debug_value(const bool diagnostics_enabled)
     {
         const QString explicit_debug = qEnvironmentVariable("WINEDEBUG").trimmed();
         if (!explicit_debug.isEmpty())
@@ -1053,7 +892,7 @@ namespace soa::runtime
             : QStringLiteral("-all");
     }
 
-    QString MacLaunchDiagnostics::registry_summary(const QString& prefix)
+    QString LaunchDiagnostics::registry_summary(const QString& prefix)
     {
         QFile registry(QDir(prefix).filePath(QStringLiteral("user.reg")));
         if (!registry.open(QIODevice::ReadOnly | QIODevice::Text))

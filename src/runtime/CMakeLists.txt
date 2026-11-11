@@ -4,11 +4,9 @@
 # Additional terms apply, see ADDITIONAL_TERMS.md.
 
 add_library(soa_runtime_support STATIC
-        MacWineRuntime.cpp
         WineProcess.cpp
         WineRegistry.cpp
         RuntimeTools.cpp
-        ${SOA_INCLUDE_DIR}/runtime/MacWineRuntime.hpp
         ${SOA_INCLUDE_DIR}/runtime/WineProcess.hpp
         ${SOA_INCLUDE_DIR}/runtime/WineRegistry.hpp
 )
@@ -32,7 +30,7 @@ add_library(soa_runtime STATIC
         GameIntegrityWatcher.cpp
         GamePhase.cpp
         GameSession.cpp
-        MacLaunchDiagnostics.cpp
+        LaunchDiagnostics.cpp
         PrefixInspector.cpp
         PrefixSetupJob.cpp
         ProcessRunner.cpp
@@ -44,7 +42,7 @@ add_library(soa_runtime STATIC
         ${SOA_INCLUDE_DIR}/runtime/AliciaLogHook.hpp
         ${SOA_INCLUDE_DIR}/runtime/GameIntegrityWatcher.hpp
         ${SOA_INCLUDE_DIR}/runtime/GameSession.hpp
-        ${SOA_INCLUDE_DIR}/runtime/MacLaunchDiagnostics.hpp
+        ${SOA_INCLUDE_DIR}/runtime/LaunchDiagnostics.hpp
         ${SOA_INCLUDE_DIR}/runtime/PrefixInspector.hpp
         ${SOA_INCLUDE_DIR}/runtime/PrefixSetupJob.hpp
         ${SOA_INCLUDE_DIR}/runtime/ProcessRunner.hpp

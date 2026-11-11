@@ -23,27 +23,17 @@
 #include <utility>
 
 #ifndef SOA_LAUNCHER_VERSION
-#define SOA_LAUNCHER_VERSION "0.3.0"
+#define SOA_LAUNCHER_VERSION "1.0.0"
 #endif
 
 #ifndef SOA_LAUNCHER_UPDATE_MANIFEST_URL
-#if defined(Q_OS_MACOS)
-#define SOA_LAUNCHER_UPDATE_MANIFEST_URL \
-    "https://r2.storyofalicia.com/launcher/macos/manifest.json"
-#else
 #define SOA_LAUNCHER_UPDATE_MANIFEST_URL \
     "https://r2.storyofalicia.com/launcher/linux/manifest.json"
 #endif
-#endif
 
 #ifndef SOA_LAUNCHER_UPDATE_FALLBACK_MANIFEST_URL
-#if defined(Q_OS_MACOS)
-#define SOA_LAUNCHER_UPDATE_FALLBACK_MANIFEST_URL \
-    "https://raw.githubusercontent.com/Story-Of-Alicia/soa-launcher-qt/launcher-updates/macos/manifest.json"
-#else
 #define SOA_LAUNCHER_UPDATE_FALLBACK_MANIFEST_URL \
     "https://raw.githubusercontent.com/Story-Of-Alicia/soa-launcher-qt/launcher-updates/linux/manifest.json"
-#endif
 #endif
 
 #ifndef SOA_LAUNCHER_UPDATE_PUBLIC_KEY_HEX
@@ -92,8 +82,7 @@ namespace soa::update
             qEnvironmentVariableIntValue("SOA_ALLOW_INSECURE_UPDATE_URLS") == 1;
 #endif
         const bool supported_platform =
-            platform_bytes == QByteArrayLiteral("linux-x86_64")
-            || platform_bytes == QByteArrayLiteral("macos");
+            platform_bytes == QByteArrayLiteral("linux-x86_64");
         if (!supported_platform)
         {
             configuration_error = soa::i18n::translate(
@@ -492,119 +481,11 @@ namespace soa::update
 
     void LauncherUpdateManager::install_downloaded_package()
     {
-#if defined(Q_OS_MACOS)
-        open_macos_installer();
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
         install_linux_appimage();
 #else
         emit update_failed(soa::i18n::translate("Automatic launcher updates are unsupported on this platform."));
 #endif
-    }
-
-    void LauncherUpdateManager::open_macos_installer()
-    {
-        if (package_kind != QStringLiteral("dmg"))
-        {
-            emit update_failed(soa::i18n::translate("The macOS launcher update is not a DMG installer."));
-            return;
-        }
-        if (!QFileInfo::exists(final_download_path)
-            || QFileInfo(final_download_path).suffix().compare(
-                QStringLiteral("dmg"), Qt::CaseInsensitive) != 0)
-        {
-            emit update_failed(soa::i18n::translate(
-                "The downloaded macOS installer could not be found."));
-            return;
-        }
-
-        auto* image_verification = new QProcess(this);
-        connect(image_verification, &QProcess::errorOccurred, this,
-                [this, image_verification](QProcess::ProcessError)
-        {
-            if (image_verification->property("soa_completed").toBool())
-                return;
-            image_verification->setProperty("soa_completed", true);
-            SPDLOG_ERROR("macOS launcher DMG verification failed: {}",
-                         image_verification->errorString().toStdString());
-            emit update_failed(soa::i18n::translate(
-                "The downloaded macOS installer failed disk image verification."));
-            image_verification->deleteLater();
-        });
-        connect(image_verification, &QProcess::finished, this,
-                [this, image_verification](const int exit_code,
-                                           const QProcess::ExitStatus exit_status)
-        {
-            if (image_verification->property("soa_completed").toBool())
-                return;
-            image_verification->setProperty("soa_completed", true);
-            const bool valid = exit_status == QProcess::NormalExit && exit_code == 0;
-            if (!valid)
-            {
-                SPDLOG_ERROR("macOS launcher DMG verification failed: {}",
-                             image_verification->readAllStandardError().toStdString());
-                emit update_failed(soa::i18n::translate(
-                    "The downloaded macOS installer failed disk image verification."));
-            }
-            image_verification->deleteLater();
-            if (valid)
-                verify_macos_installer_signature();
-        });
-        image_verification->start(QStringLiteral("/usr/bin/hdiutil"),
-                                  {QStringLiteral("verify"), final_download_path});
-    }
-
-    void LauncherUpdateManager::verify_macos_installer_signature()
-    {
-        auto* signature_verification = new QProcess(this);
-        connect(signature_verification, &QProcess::errorOccurred, this,
-                [this, signature_verification](QProcess::ProcessError)
-        {
-            if (signature_verification->property("soa_completed").toBool())
-                return;
-            signature_verification->setProperty("soa_completed", true);
-            SPDLOG_ERROR("macOS launcher DMG signature verification failed: {}",
-                         signature_verification->errorString().toStdString());
-            emit update_failed(soa::i18n::translate(
-                "The downloaded macOS installer could not be verified by macOS."));
-            signature_verification->deleteLater();
-        });
-        connect(signature_verification, &QProcess::finished, this,
-                [this, signature_verification](const int exit_code,
-                                               const QProcess::ExitStatus exit_status)
-        {
-            if (signature_verification->property("soa_completed").toBool())
-                return;
-            signature_verification->setProperty("soa_completed", true);
-            const bool valid = exit_status == QProcess::NormalExit && exit_code == 0;
-            if (!valid)
-            {
-                SPDLOG_ERROR("macOS launcher DMG signature verification failed: {}",
-                             signature_verification->readAllStandardError().toStdString());
-                emit update_failed(soa::i18n::translate(
-                    "The downloaded macOS installer could not be verified by macOS."));
-            }
-            signature_verification->deleteLater();
-            if (valid)
-                open_verified_macos_installer();
-        });
-        signature_verification->start(QStringLiteral("/usr/sbin/spctl"),
-                                      {QStringLiteral("--assess"),
-                                       QStringLiteral("--type"),
-                                       QStringLiteral("open"),
-                                       QStringLiteral("--context"),
-                                       QStringLiteral("context:primary-signature"),
-                                       QStringLiteral("--verbose=4"),
-                                       final_download_path});
-    }
-
-    void LauncherUpdateManager::open_verified_macos_installer()
-    {
-        if (!QProcess::startDetached(QStringLiteral("/usr/bin/open"), {final_download_path}))
-        {
-            emit update_failed(soa::i18n::translate("The launcher could not open the downloaded macOS installer."));
-            return;
-        }
-        emit installer_started(final_download_path);
     }
 
     void LauncherUpdateManager::install_linux_appimage()
@@ -735,9 +616,7 @@ namespace soa::update
 
     QString LauncherUpdateManager::detected_platform_key()
     {
-#if defined(Q_OS_MACOS)
-        return QStringLiteral("macos");
-#elif defined(Q_OS_LINUX) && defined(Q_PROCESSOR_X86_64)
+#if defined(Q_OS_LINUX) && defined(Q_PROCESSOR_X86_64)
         return QStringLiteral("linux-x86_64");
 #elif defined(Q_OS_LINUX) && defined(Q_PROCESSOR_ARM_64)
         return QStringLiteral("linux-arm64");
@@ -772,7 +651,7 @@ namespace soa::update
             QCoreApplication::applicationFilePath()).absoluteFilePath();
         const QFileInfoList stale_files = cache.entryInfoList(
             {QStringLiteral("*.AppImage"), QStringLiteral("*.appimage"),
-             QStringLiteral("*.dmg"), QStringLiteral("*.part")},
+             QStringLiteral("*.part")},
             QDir::Files | QDir::NoSymLinks);
         for (const QFileInfo& file : stale_files)
         {

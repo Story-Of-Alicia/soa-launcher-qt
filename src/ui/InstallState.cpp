@@ -182,21 +182,11 @@ namespace soa::ui
         rules_accepted = config.rules_accepted();
         runtime_chosen = config.runtime_selected();
 
-#if defined(Q_OS_MACOS)
-        const bool proton = false;
-#else
         const bool proton = soa::runtime::WineRegistry::identify(config.wine_binary())
             == soa::runtime::RuntimeType::Proton;
-#endif
         const QString runtimeIdentity = proton
             ? config.wine_binary()
             : soa::runtime::WineRegistry::resolve_wine_executable(config.wine_binary());
-#if defined(Q_OS_MACOS)
-        runtime_chosen = runtime_chosen
-            && !runtimeIdentity.isEmpty()
-            && QFileInfo(runtimeIdentity).isFile()
-            && QFileInfo(runtimeIdentity).isExecutable();
-#endif
         const auto inspection = soa::runtime::PrefixInspector::inspect(
             prefix,
             runtimeIdentity.isEmpty() ? config.wine_binary() : runtimeIdentity,

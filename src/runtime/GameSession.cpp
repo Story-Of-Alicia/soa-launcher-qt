@@ -6,6 +6,7 @@
 #include "runtime/GameSession.hpp"
 
 #include "runtime/AliciaLogHook.hpp"
+#include "runtime/LaunchDiagnostics.hpp"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -33,110 +34,21 @@
 namespace soa::runtime
 {
     using soa::config::Config;
-
     namespace
     {
-
         constexpr const char* k_default_virtual_desktop = "1280x720";
         constexpr int k_registry_timeout_ms = 45 * 1000;
         constexpr int k_probe_timeout_ms = 5 * 1000;
-#if defined(Q_OS_MACOS)
-        constexpr int k_initial_probe_delay_ms = 8000;
-        constexpr int k_start_probe_interval_ms = 3000;
-        constexpr int k_running_probe_interval_ms = 10000;
-#else
         constexpr int k_initial_probe_delay_ms = 100;
         constexpr int k_start_probe_interval_ms = 350;
         constexpr int k_running_probe_interval_ms = 2000;
-#endif
         constexpr int k_start_max_attempts = 60;
         constexpr int k_wrapper_exit_grace_ms = 8000;
         constexpr int k_absolute_start_timeout_ms = 120 * 1000;
         constexpr int k_probe_failure_limit = 4;
         constexpr int k_attached_probe_failure_limit = 8;
         constexpr int k_missing_confirmation_limit = 3;
-#if defined(Q_OS_LINUX)
         constexpr bool k_primary_probe_is_host = true;
-#else
-        constexpr bool k_primary_probe_is_host = false;
-#endif
-
-#if defined(Q_OS_MACOS)
-        bool patch_existing_alice_config(const QString& game_directory, QString& message)
-        {
-            const QString config_path = QDir(game_directory).filePath(QStringLiteral("alice.cfg"));
-            QFile source(config_path);
-            if (!source.exists())
-            {
-                message = QStringLiteral("alice.cfg does not exist yet. This launch "
-                                         "will still use the safe-display profile; "
-                                         "select Low Graphics again after the game "
-                                         "creates the file.");
-                return true;
-            }
-            if (!source.open(QIODevice::ReadOnly))
-            {
-                message = QStringLiteral("The existing alice.cfg could not be read.");
-                return false;
-            }
-
-            const QByteArray original = source.readAll();
-            source.close();
-            QString text = QString::fromLatin1(original);
-            bool changed = false;
-            const QMap<QString, QString> replacements {
-                {QStringLiteral("r_motionBlur"), QStringLiteral("0")},
-                {QStringLiteral("r_mrt"), QStringLiteral("0")},
-                {QStringLiteral("r_radialBlur"), QStringLiteral("0")},
-                {QStringLiteral("cmd_force_simpleShadow"), QStringLiteral("1")}};
-            for (auto it = replacements.cbegin(); it != replacements.cend(); ++it)
-            {
-                const QRegularExpression expression(
-                    QStringLiteral(R"((?m)^(\s*seta\s+%1\s+")[^"]*("))")
-                        .arg(QRegularExpression::escape(it.key())));
-                const QRegularExpressionMatch match = expression.match(text);
-                if (!match.hasMatch())
-                    continue;
-                const QString replacement = match.captured(1) + it.value() + match.captured(2);
-                text.replace(match.capturedStart(), match.capturedLength(), replacement);
-                changed = true;
-            }
-
-            if (!changed)
-            {
-                message = QStringLiteral("alice.cfg was found, but none of the "
-                                         "verified compatibility keys were present.");
-                return true;
-            }
-
-            const QString backup_path = config_path + QStringLiteral(".soa-macos-backup");
-            if (!QFileInfo::exists(backup_path))
-            {
-                QSaveFile backup(backup_path);
-                if (!backup.open(QIODevice::WriteOnly) ||
-                    backup.write(original) != original.size() || !backup.commit())
-                {
-                    message = QStringLiteral("The launcher could not create an "
-                                             "alice.cfg backup.");
-                    return false;
-                }
-            }
-
-            const QByteArray updated = text.toLatin1();
-            QSaveFile output(config_path);
-            if (!output.open(QIODevice::WriteOnly) || output.write(updated) != updated.size() ||
-                !output.commit())
-            {
-                message = QStringLiteral("The launcher could not apply the "
-                                         "conservative alice.cfg profile.");
-                return false;
-            }
-            message = QStringLiteral("Applied the conservative macOS graphics "
-                                     "profile and saved "
-                                     "alice.cfg.soa-macos-backup.");
-            return true;
-        }
-#endif
     }
 
     GameSession::GameSession(RuntimeLocator& runtime, ProcessRunner& runner, Callbacks callbacks,
@@ -290,7 +202,6 @@ namespace soa::runtime
             origin_ = SessionOrigin::Started;
             tracked_game_process_ = {};
             tracked_host_process_ = {};
-            diagnostic_sample_armed_ = false;
         }
         else if (next == GamePhase::Running)
         {
@@ -332,7 +243,6 @@ namespace soa::runtime
         verification_attempts_ = 0;
         probe_failures_ = 0;
         missing_probes_ = 0;
-        diagnostic_sample_armed_ = false;
     }
 
     void GameSession::run_game(const QString& user, const QString& token)
@@ -491,9 +401,7 @@ namespace soa::runtime
             proton ? runtime_.umu_environment() : QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("WINEPREFIX"), Config::instance().prefix_root());
         environment.insert(QStringLiteral("WINEDEBUG"), QStringLiteral("-all"));
-#if defined(Q_OS_MACOS)
-        environment.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-#endif
+
         if (!proton)
             runtime_.apply_wine_environment(environment);
 
@@ -540,9 +448,7 @@ namespace soa::runtime
             proton ? runtime_.umu_environment() : QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("WINEPREFIX"), Config::instance().prefix_root());
         environment.insert(QStringLiteral("WINEDEBUG"), QStringLiteral("-all"));
-#if defined(Q_OS_MACOS)
-        environment.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-#endif
+
         if (!proton)
             runtime_.apply_wine_environment(environment);
 
@@ -661,24 +567,11 @@ namespace soa::runtime
         const bool audio_done =
             audio_flag.isEmpty() ||
             (query_succeeded && query_output.contains(audio_flag, Qt::CaseInsensitive));
-#if defined(Q_OS_MACOS)
-        const QString macos_profile = Config::instance().macos_compatibility_profile();
-        const bool macos_profile_done =
-            query_succeeded &&
-            query_output.contains(QStringLiteral("MacCompatibilityProfile"), Qt::CaseInsensitive) &&
-            query_output.contains(macos_profile, Qt::CaseInsensitive);
-#else
-        const bool macos_profile_done = true;
-#endif
-        needs_import = !base_done || !audio_done || !macos_profile_done;
-#if defined(Q_OS_MACOS)
-        needs_import = true;
-#endif
+
         if (!needs_import)
             return true;
 
         QString registry = QStringLiteral("REGEDIT4\r\n\r\n");
-#if !defined(Q_OS_MACOS)
         if (!base_done && profile.video_settings_registry_key[0] != '\0')
         {
             registry += QStringLiteral("[HKEY_CURRENT_USER\\%1]\r\n")
@@ -688,35 +581,7 @@ namespace soa::runtime
             registry += QStringLiteral("\"Width\"=\"0\"\r\n");
             registry += QStringLiteral("\"Height\"=\"0\"\r\n\r\n");
         }
-#else
-        registry += QStringLiteral("[HKEY_CURRENT_USER\\Software\\Wine\\"
-                                   "Direct3D]\r\n");
-        registry += QStringLiteral("\"renderer\"=-\r\n\r\n");
-        registry += QStringLiteral("[HKEY_CURRENT_USER\\Software\\Wine\\"
-                                   "Mac Driver]\r\n");
-        registry += QStringLiteral("\"RetinaMode\"=\"n\"\r\n\r\n");
-        registry += QStringLiteral("[HKEY_CURRENT_USER\\Software\\Wine\\"
-                                   "AppDefaults\\Alicia.exe\\Mac Driver]\r\n");
-        if (MacLaunchDiagnostics::profile_uses_virtual_desktop(macos_profile))
-        {
-            registry += QStringLiteral("\"CaptureDisplaysForFullscreen\"=\"n\"\r\n");
-            registry += QStringLiteral("\"AllowSetGamma\"=\"n\"\r\n");
-        }
-        else
-        {
-            registry += QStringLiteral("\"CaptureDisplaysForFullscreen\"=-\r\n");
-            registry += QStringLiteral("\"AllowSetGamma\"=-\r\n");
-        }
-        const QString surface_mode = MacLaunchDiagnostics::opengl_surface_mode(macos_profile);
-        if (surface_mode.isEmpty())
-        {
-            registry += QStringLiteral("\"OpenGLSurfaceMode\"=-\r\n\r\n");
-        }
-        else
-        {
-            registry += QStringLiteral("\"OpenGLSurfaceMode\"=\"%1\"\r\n\r\n").arg(surface_mode);
-        }
-#endif
+
         if (!audio_done && profile.audio_settings_registry_key[0] != '\0')
         {
             registry += QStringLiteral("[HKEY_CURRENT_USER\\%1]\r\n")
@@ -734,9 +599,6 @@ namespace soa::runtime
         {
             registry += QStringLiteral("\"%1\"=dword:00000001\r\n").arg(audio_flag);
         }
-#if defined(Q_OS_MACOS)
-        registry += QStringLiteral("\"MacCompatibilityProfile\"=\"%1\"\r\n").arg(macos_profile);
-#endif
 
         registry_file = QDir(Config::instance().prefix_root())
                             .filePath(QStringLiteral("drive_c/.soa-first-launch.reg"));
@@ -871,9 +733,7 @@ namespace soa::runtime
                                                              ? probe_prefix_snapshot_
                                                              : Config::instance().prefix_root());
         environment.insert(QStringLiteral("WINEDEBUG"), QStringLiteral("-all"));
-#if defined(Q_OS_MACOS)
-        environment.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-#endif
+
         if (!probe_context_valid_ && !proton)
             runtime_.apply_wine_environment(environment);
 
@@ -907,20 +767,13 @@ namespace soa::runtime
             proton ? runtime_.umu_environment() : QProcessEnvironment::systemEnvironment();
         probe_environment_snapshot_.insert(QStringLiteral("WINEPREFIX"), probe_prefix_snapshot_);
         probe_environment_snapshot_.insert(QStringLiteral("WINEDEBUG"), QStringLiteral("-all"));
-#if defined(Q_OS_MACOS)
-        probe_environment_snapshot_.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-#endif
+
         if (!proton)
         {
             runtime_.apply_wine_environment(probe_environment_snapshot_);
         }
-#if defined(Q_OS_LINUX)
         probe_context_valid_ = !probe_prefix_snapshot_.isEmpty() &&
                                !QStandardPaths::findExecutable(QStringLiteral("ps")).isEmpty();
-#else
-        probe_context_valid_ =
-            !probe_program_snapshot_.isEmpty() && !probe_prefix_snapshot_.isEmpty();
-#endif
     }
 
     void GameSession::clear_game_probe_context()
@@ -966,37 +819,10 @@ namespace soa::runtime
         auto final_completion =
             std::make_shared<std::function<void(bool, std::optional<WindowsProcessInfo>)>>(
                 std::move(completion));
-#if defined(Q_OS_LINUX)
         return start_host_game_probe(
             [final_completion](const bool host_ok,
                                const std::optional<WindowsProcessInfo> host_info)
             { (*final_completion)(host_ok, host_info); });
-#else
-        auto fallback =
-            [this, final_completion](const bool tasklist_ok,
-                                     const std::optional<WindowsProcessInfo> tasklist_info)
-        {
-            if (tasklist_info)
-            {
-                (*final_completion)(true, tasklist_info);
-                return;
-            }
-
-            if (!start_host_game_probe(
-                    [final_completion, tasklist_ok](
-                        const bool host_ok, const std::optional<WindowsProcessInfo> host_info)
-                    { (*final_completion)(tasklist_ok || host_ok, host_info); }))
-            {
-                (*final_completion)(tasklist_ok, std::nullopt);
-            }
-        };
-        if (start_game_probe(fallback))
-            return true;
-        return start_host_game_probe(
-            [final_completion](const bool host_ok,
-                               const std::optional<WindowsProcessInfo> host_info)
-            { (*final_completion)(host_ok, host_info); });
-#endif
     }
 
     void GameSession::handle_game_probe_output()
@@ -1379,13 +1205,6 @@ namespace soa::runtime
                                               QStringLiteral("host_pid=%1 windows_pid=%2")
                                                   .arg(tracked_host_process_.pid)
                                                   .arg(tracked_game_process_.pid));
-                    const auto configuration = diagnostics_.configuration();
-                    if (configuration.enabled && !diagnostic_sample_armed_)
-                    {
-                        diagnostic_sample_armed_ = true;
-                        diagnostics_.arm_host_sample(tracked_game_process_.pid,
-                                                     tracked_host_process_.pid);
-                    }
                 }))
         {
             SPDLOG_DEBUG("host PID diagnostics probe deferred because "
@@ -1468,7 +1287,6 @@ namespace soa::runtime
         if (!transition(GamePhase::Finished))
             return;
         stop_probe();
-        diagnostics_.cancel_host_sample();
         if (runner_.is_busy())
             runner_.terminate(CommandOutcome::Cancelled);
 
@@ -1512,7 +1330,6 @@ namespace soa::runtime
             return;
         }
         stop_probe();
-        diagnostics_.cancel_host_sample();
         diagnostics_.finish(QStringLiteral("monitoring_lost"), last_wrapper_exit, false, message);
         diagnostics_.close_log();
 
@@ -1553,7 +1370,6 @@ namespace soa::runtime
         if (!transition(GamePhase::Finished))
             return;
         stop_probe();
-        diagnostics_.cancel_host_sample();
 
         const qint64 duration_ms = diagnostics_.elapsed_ms();
         QString timeline_outcome;
@@ -1677,54 +1493,25 @@ namespace soa::runtime
 
         const auto& profile = soa::common::game::profile(launch_->version);
         const QString prefix = Config::instance().prefix_root();
-#if defined(Q_OS_MACOS)
-        constexpr bool proton = false;
-#else
         const bool proton = runtime_.runtime_is_proton();
-#endif
         const QString sensitive_token = launch_->token;
         const auto diagnostics_configuration = diagnostics_.begin(
             launch_->version, prefix, launch_->game_directory, launch_->executable_path,
             {sensitive_token},
             [this]()
             {
-                return MacLaunchDiagnostics::ProcessSnapshot {
+                return LaunchDiagnostics::ProcessSnapshot {
                     phase_ == GamePhase::Launching || phase_ == GamePhase::Running,
                     phase_ == GamePhase::Running,
                     wrapper_state_ == WrapperState::Running ||
                         runner_.state() != QProcess::NotRunning};
             });
 
-#if defined(Q_OS_MACOS)
-        const bool requested_dxvk = false;
-        const bool effective_dxvk = false;
-        const QString compatibility_profile = diagnostics_configuration.profile;
-        const QString runtime_executable = diagnostics_configuration.runtime.executable;
-        const bool force_windowed_d3d9 =
-            compatibility_profile == QStringLiteral("safe-display") ||
-            compatibility_profile == QStringLiteral("low-graphics");
-#else
         const bool requested_dxvk = Config::instance().use_dxvk();
         const bool effective_dxvk =
             requested_dxvk && (proton || PrefixInspector::dxvk_installed(prefix));
         constexpr bool force_windowed_d3d9 = false;
-#endif
-#if defined(Q_OS_MACOS)
-        const QString injector_marker_dir =
-            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-        const bool bypass_alicia_injector =
-            (qEnvironmentVariableIntValue("SOA_BYPASS_ALICIA_INJECTOR") == 1 ||
-             QFileInfo(QDir(injector_marker_dir)
-                           .filePath(QStringLiteral("no-injector")))
-                 .exists()) &&
-            !force_windowed_d3d9;
-        if (bypass_alicia_injector)
-        {
-            SPDLOG_INFO("Alicia injector bypassed (no hook, no audio this run)");
-        }
-#else
         constexpr bool bypass_alicia_injector = false;
-#endif
         if (requested_dxvk && !effective_dxvk)
         {
             if (callbacks_.user_notice)
@@ -1746,13 +1533,7 @@ namespace soa::runtime
         AliciaLogHook::Preparation alicia_log_hook;
         if (!bypass_alicia_injector)
         {
-#if defined(Q_OS_MACOS)
-            const bool audio_needs_hook =
-                qEnvironmentVariable("SOA_AUDIO_PIPE").trimmed() != QStringLiteral("0") &&
-                qEnvironmentVariable("SOA_AUDIO_NULL_BACKEND").trimmed() != QStringLiteral("1");
-#else
             constexpr bool audio_needs_hook = false;
-#endif
             alicia_log_hook = AliciaLogHook::prepare(
                 prefix, diagnostics_.run_directory(), force_windowed_d3d9,
                 audio_needs_hook);
@@ -1810,46 +1591,6 @@ namespace soa::runtime
         }
         game_arguments.append(custom_arguments.arguments);
 
-#if defined(Q_OS_MACOS)
-        const QStringList expected_local_files {
-            QStringLiteral("d3dx9_31.dll"),       QStringLiteral("d3dx9_42.dll"),
-            QStringLiteral("D3DCompiler_42.dll"), QStringLiteral("xinput1_3.dll"),
-            QStringLiteral("msvcp100.dll"),       QStringLiteral("msvcr100.dll"),
-            QStringLiteral("PhysXLoader.dll"),    QStringLiteral("PhysXCore.dll"),
-            QStringLiteral("PhysXCooking.dll"),   QStringLiteral("PhysXDevice.dll"),
-            QStringLiteral("cudart32_30_9.dll")};
-        QStringList missing_local_files;
-        for (const QString& file : expected_local_files)
-        {
-            if (!QFileInfo(QDir(launch_->game_directory).filePath(file)).isFile())
-            {
-                missing_local_files.append(file);
-            }
-        }
-        if (!missing_local_files.isEmpty())
-        {
-            fail_game_launch(QStringLiteral("The macOS game package is incomplete. "
-                                            "Repair the game installation; these required "
-                                            "local components are missing:\n%1")
-                                 .arg(missing_local_files.join(QStringLiteral("\n"))));
-            return;
-        }
-
-        if (compatibility_profile == QStringLiteral("low-graphics"))
-        {
-            QString patch_message;
-            if (!patch_existing_alice_config(launch_->game_directory, patch_message))
-            {
-                fail_game_launch(
-                    QStringLiteral("Compatibility profile failed: %1")
-                        .arg(soa::i18n::translate(patch_message)));
-                return;
-            }
-            if (callbacks_.user_notice)
-                callbacks_.user_notice(soa::i18n::translate(patch_message));
-        }
-#endif
-
         const quint64 generation = generation_;
         auto start_wrapper = [this, generation,
                               sensitive_token](const QString& program, const QStringList& arguments,
@@ -1887,15 +1628,6 @@ namespace soa::runtime
             diagnostics_.write_effective_command(
                 program, redacted_command_args(arguments, {sensitive_token}),
                 request.working_directory);
-#if defined(Q_OS_MACOS)
-            if (diagnostics_.configuration().supported &&
-                QFileInfo(QStringLiteral("/usr/bin/caffeinate")).isExecutable())
-            {
-                diagnostics_.append_event(QStringLiteral("app_nap_guard_enabled"),
-                                          QStringLiteral("program=/usr/bin/caffeinate "
-                                                         "flags=-dimsu"));
-            }
-#endif
 
             if (runner_.start(std::move(request), [this, generation](const command_result& result)
                               { handle_wrapper_finished(result, generation); }))
@@ -1906,7 +1638,6 @@ namespace soa::runtime
             return false;
         };
 
-#if !defined(Q_OS_MACOS)
         if (proton)
         {
             const QString umu = umu_path();
@@ -1970,183 +1701,14 @@ namespace soa::runtime
                           QStringLiteral("umu-run could not be started."));
             return;
         }
-#endif
 
         QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("WINEPREFIX"), prefix);
-#if defined(Q_OS_MACOS)
-        environment.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-        environment.insert(QStringLiteral("WINEDEBUG"), diagnostics_configuration.wine_debug);
-        const QString graphics_marker_dir =
-            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-        const bool wined3d_forced =
-            qEnvironmentVariable("SOA_D3D_BACKEND").trimmed() ==
-                QStringLiteral("wined3d") ||
-            QFileInfo(QDir(graphics_marker_dir)
-                          .filePath(QStringLiteral("use-wined3d")))
-                .exists();
-
-        QString macos_dll_overrides =
-            QStringLiteral("d3d9,ddraw,dinput8,dsound=b;"
-                           "d3dx9_31,d3dx9_42,d3dcompiler_42,"
-                           "d3dcompiler_47,msvcp100,msvcr100=n,b");
-        SPDLOG_INFO("Graphics backend: builtin wined3d (OpenGL){}",
-                    wined3d_forced ? " (forced)" : "");
-        const bool audio_pipe =
-            qEnvironmentVariable("SOA_AUDIO_PIPE").trimmed() != QStringLiteral("0") &&
-            qEnvironmentVariable("SOA_AUDIO_NULL_BACKEND").trimmed() != QStringLiteral("1");
-        if (audio_pipe && alicia_log_hook.available)
-        {
-            const QString app_data =
-                QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-            QDir().mkpath(app_data);
-            const QString helper =
-                QDir(app_data).filePath(QStringLiteral("soa-audio-host"));
-
-            QStringList helper_sources;
-            const QString helper_override =
-                qEnvironmentVariable("SOA_AUDIO_HOST_PATH").trimmed();
-            if (!helper_override.isEmpty())
-            {
-                helper_sources << helper_override;
-            }
-            if (!alicia_log_hook.audio_host_host_path.isEmpty())
-            {
-                helper_sources << alicia_log_hook.audio_host_host_path;
-            }
-            const QDir application_dir(QCoreApplication::applicationDirPath());
-            helper_sources
-                << application_dir.filePath(
-                       QStringLiteral("alicia-log-hook/soa-audio-host"))
-                << application_dir.filePath(
-                       QStringLiteral("../Resources/alicia-log-hook/soa-audio-host"))
-                << application_dir.filePath(QStringLiteral("soa-audio-host"));
-
-            const QFileInfo installed(helper);
-            for (const QString& raw_source : helper_sources)
-            {
-                const QFileInfo source(QDir::cleanPath(raw_source));
-                if (!source.isFile())
-                {
-                    continue;
-                }
-                if (installed.exists() &&
-                    installed.lastModified() >= source.lastModified())
-                {
-                    break;
-                }
-                QFile::remove(helper);
-                if (QFile::copy(source.absoluteFilePath(), helper))
-                {
-                    SPDLOG_INFO("Installed audio helper from {} to {}",
-                                source.absoluteFilePath().toStdString(),
-                                helper.toStdString());
-                }
-                break;
-            }
-
-            if (QFileInfo(helper).isFile())
-            {
-                QFile::setPermissions(helper, QFile::permissions(helper) |
-                                                  QFileDevice::ExeOwner |
-                                                  QFileDevice::ExeGroup |
-                                                  QFileDevice::ExeOther);
-            }
-
-            if (QFileInfo(helper).isExecutable())
-            {
-                const QString port =
-                    qEnvironmentVariable("SOA_AUDIO_PIPE_PORT").trimmed();
-                QStringList helper_arguments { QStringLiteral("--exit-after-stream") };
-                if (!port.isEmpty())
-                {
-                    helper_arguments << QStringLiteral("--port") << port;
-                }
-                if (QProcess::startDetached(helper, helper_arguments))
-                {
-                    environment.insert(QStringLiteral("SOA_AUDIO_PIPE"),
-                                       QStringLiteral("1"));
-                    if (!port.isEmpty())
-                    {
-                        environment.insert(QStringLiteral("SOA_AUDIO_PIPE_PORT"), port);
-                    }
-                    SPDLOG_INFO("Started native audio helper: {}",
-                                helper.toStdString());
-                }
-                else
-                {
-                    SPDLOG_WARN("Could not start {}; falling back to silent audio",
-                                helper.toStdString());
-                }
-            }
-            else
-            {
-                SPDLOG_WARN("No soa-audio-host at {} and no source to install "
-                            "from; audio will be silent. Copy it there by hand "
-                            "or set SOA_AUDIO_HOST_PATH. Sources tried:",
-                            helper.toStdString());
-                for (const QString& candidate : helper_sources)
-                {
-                    SPDLOG_WARN("  {}", QDir::cleanPath(candidate).toStdString());
-                }
-            }
-        }
-
-        if (!environment.contains(QStringLiteral("SOA_AUDIO_PIPE")) &&
-            MacLaunchDiagnostics::profile_disables_audio(compatibility_profile))
-        {
-
-            environment.insert(QStringLiteral("SOA_AUDIO_NULL_BACKEND"), QStringLiteral("1"));
-            SPDLOG_INFO("Audio isolation: enabling in-process null DirectSound backend");
-        }
-
-        const QString custom_wine_overrides =
-            qEnvironmentVariable("SOA_WINE_DLL_OVERRIDES").trimmed();
-        if (!custom_wine_overrides.isEmpty())
-        {
-            macos_dll_overrides += QLatin1Char(';') + custom_wine_overrides;
-            SPDLOG_INFO("Appending custom Wine DLL overrides: {}",
-                        custom_wine_overrides.toStdString());
-        }
-
-        if (Config::instance().macos_video_decoder_workaround())
-        {
-            macos_dll_overrides += QStringLiteral(";winegstreamer=");
-            SPDLOG_INFO("macOS video decoder workaround enabled: winegstreamer disabled");
-        }
-
-        environment.insert(QStringLiteral("WINEDLLOVERRIDES"), macos_dll_overrides);
-        SPDLOG_INFO("Effective Alicia WINEDLLOVERRIDES: {}",
-                    macos_dll_overrides.toStdString());
-        environment.insert(QStringLiteral("WINE_FULLSCREEN_FSR"), QStringLiteral("0"));
-
-        if (QFileInfo(QDir(graphics_marker_dir).filePath(QStringLiteral("use-esync")))
-                .exists() ||
-            qEnvironmentVariable("SOA_ENABLE_ESYNC").trimmed() == QStringLiteral("1"))
-        {
-            environment.insert(QStringLiteral("WINEESYNC"), QStringLiteral("1"));
-            SPDLOG_INFO("esync enabled (opt-in)");
-        }
-        if (QFileInfo(QDir(graphics_marker_dir).filePath(QStringLiteral("use-msync")))
-                .exists() ||
-            qEnvironmentVariable("SOA_ENABLE_MSYNC").trimmed() == QStringLiteral("1"))
-        {
-            environment.insert(QStringLiteral("WINEMSYNC"), QStringLiteral("1"));
-            SPDLOG_INFO("msync enabled (opt-in)");
-        }
-
-        if (QFileInfo(QDir(graphics_marker_dir).filePath(QStringLiteral("metal-hud")))
-                .exists())
-        {
-            environment.insert(QStringLiteral("MTL_HUD_ENABLED"), QStringLiteral("1"));
-            SPDLOG_INFO("Metal performance HUD enabled");
-        }
-#else
         environment.insert(QStringLiteral("WINEDEBUG"), diagnostics_configuration.wine_debug);
         environment.insert(QStringLiteral("WINEDLLOVERRIDES"),
                            effective_dxvk ? QStringLiteral("d3d9,d3d10core,d3d11,dxgi=n")
                                           : QStringLiteral("d3d9,d3d10core,d3d11,dxgi=b"));
-#endif
+
         runtime_.apply_wine_environment(environment);
         RuntimeLocator::apply_runtime_environment_entries(
             environment, custom_arguments.environment_entries);
@@ -2171,60 +1733,11 @@ namespace soa::runtime
         }
 
         QStringList arguments;
-#if defined(Q_OS_MACOS)
-        const bool virtual_desktop =
-            MacLaunchDiagnostics::profile_uses_virtual_desktop(compatibility_profile);
-        if (virtual_desktop)
-        {
-
-            static const QRegularExpression geometry_pattern(
-                QStringLiteral("^[0-9]{3,5}x[0-9]{3,5}$"));
-            QString geometry = qEnvironmentVariable("SOA_VIRTUAL_DESKTOP").trimmed();
-            if (!geometry_pattern.match(geometry).hasMatch())
-                geometry = QString::fromLatin1(k_default_virtual_desktop);
-            arguments << QStringLiteral("explorer")
-                      << QStringLiteral("/desktop=StoryOfAlicia,%1").arg(geometry);
-            SPDLOG_INFO("Virtual desktop geometry {}", geometry.toStdString());
-        }
-        if (alicia_log_hook.available)
-        {
-            arguments << alicia_log_hook.injector_windows_path;
-        }
-        arguments << windows_executable;
-        arguments.append(game_arguments);
-
-        const auto& runtime_context = diagnostics_configuration.runtime;
-        if (runtime_context.usable)
-        {
-            SPDLOG_INFO("Alicia Wine session: source={} executable={} profile={}",
-                        runtime_context.source.toStdString(),
-                        runtime_context.executable.toStdString(),
-                        compatibility_profile.toStdString());
-        }
-        const QStringList logged_arguments = redacted_command_args(arguments, {sensitive_token});
-        SPDLOG_INFO("macOS launch profile={} runtime={} prefix={} "
-                    "executable={} virtual_desktop={} retina={} "
-                    "opengl_surface={} command={} {}",
-                    compatibility_profile.toStdString(), runtime_executable.toStdString(),
-                    prefix.toStdString(), windows_executable.toStdString(), virtual_desktop,
-                    MacLaunchDiagnostics::retina_enabled(compatibility_profile) ? "on" : "off",
-                    MacLaunchDiagnostics::opengl_surface_mode(compatibility_profile).isEmpty()
-                        ? "front-opaque-default"
-                        : "behind",
-                    runtime_.wine_binary().toStdString(),
-                    logged_arguments.join(QLatin1Char(' ')).toStdString());
-        const QString launch_failure = diagnostics_.diagnostic_path().isEmpty()
-            ? QStringLiteral("Wine could not start Alicia.exe. Check launcher.log for details.")
-            : QStringLiteral("Wine could not start Alicia.exe. Check the labeled diagnostic run at %1.")
-                  .arg(QFileInfo(diagnostics_.diagnostic_path()).absolutePath());
-        start_wrapper(runtime_.wine_binary(), arguments, environment, launch_failure);
-#else
         if (alicia_log_hook.available)
             arguments << alicia_log_hook.injector_windows_path;
         arguments << windows_executable;
         arguments.append(game_arguments);
         start_wrapper(runtime_.wine_binary(), arguments, environment,
                       QStringLiteral("Wine could not start Alicia.exe."));
-#endif
     }
 }

@@ -66,14 +66,10 @@ namespace soa::update
         if (entries.isEmpty() || entries.size() > 3)
             return false;
 
-        const QString package_kind = expected_platform == QStringLiteral("macos")
-            ? QStringLiteral("dmg")
-            : expected_platform == QStringLiteral("linux-x86_64")
+        const QString package_kind = expected_platform == QStringLiteral("linux-x86_64")
                 ? QStringLiteral("appimage")
                 : QString{};
-        const QString extension = package_kind == QStringLiteral("dmg")
-            ? QStringLiteral(".dmg")
-            : QStringLiteral(".appimage");
+        const QString extension = QStringLiteral(".appimage");
         if (package_kind.isEmpty())
             return false;
 

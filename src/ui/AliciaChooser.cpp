@@ -253,12 +253,7 @@ void AliciaChooser::on_stage_changed(const Stage stage)
             message = welcome_message(game_version, soa::i18n::translate("complete the easy setup assistant"));
             break;
         case Stage::NeedsRuntime:
-#if defined(Q_OS_MACOS)
-            message = welcome_message(
-                game_version, soa::i18n::translate("choose Wine"));
-#else
             message = welcome_message(game_version, soa::i18n::translate("choose Wine or Proton"));
-#endif
             break;
         case Stage::NeedsPrefix:
             message = soa::i18n::translate("The shared Wine prefix needs to be created before installing the game.");

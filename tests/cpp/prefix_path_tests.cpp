@@ -18,7 +18,6 @@
 #include "common/AppPaths.hpp"
 #include "common/GameVersion.hpp"
 #include "runtime/GameSession.hpp"
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/PrefixInspector.hpp"
 #include "runtime/ProcessRunner.hpp"
 #include "runtime/RuntimeLocator.hpp"

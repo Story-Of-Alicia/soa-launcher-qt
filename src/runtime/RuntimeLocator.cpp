@@ -11,7 +11,6 @@
 
 #include <utility>
 
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/WineRegistry.hpp"
 #include "config/Config.hpp"
 #include <spdlog/spdlog.h>
@@ -50,37 +49,29 @@ namespace soa::runtime
         }
 
         const QString resolved = WineRegistry::resolve_wine_executable(configured);
-#if defined(Q_OS_MACOS)
-        return resolved;
-#else
         return resolved.isEmpty() ? (configured.isEmpty() ? QStringLiteral("wine") : configured)
                                   : resolved;
-#endif
     }
 
     QString RuntimeLocator::proton_root() const
     {
-#if !defined(Q_OS_MACOS)
         if (is_managed_proton(settings().configured_runtime))
         {
             const QString resolved = resolve_managed_proton_root();
             return resolved.isEmpty() ? managed_proton_identifier() : resolved;
         }
-#endif
         const QFileInfo info(wine_binary());
         return info.isFile() ? info.dir().absolutePath() : info.absoluteFilePath();
     }
 
     QString RuntimeLocator::proton_binary() const
     {
-#if !defined(Q_OS_MACOS)
         if (is_managed_proton(settings().configured_runtime))
         {
             const QString resolved = resolve_managed_proton_root();
             return resolved.isEmpty() ? QString()
                                       : QDir(resolved).filePath(QStringLiteral("proton"));
         }
-#endif
         const QFileInfo info(wine_binary());
         if (info.isFile() &&
             info.fileName().compare(QStringLiteral("proton"), Qt::CaseInsensitive) == 0)
@@ -143,11 +134,7 @@ namespace soa::runtime
 
     bool RuntimeLocator::runtime_is_proton() const
     {
-#if defined(Q_OS_MACOS)
-        return false;
-#else
         return WineRegistry::identify(wine_binary()) == RuntimeType::Proton;
-#endif
     }
 
     QString RuntimeLocator::steam_root() const
@@ -215,7 +202,6 @@ namespace soa::runtime
 
     bool RuntimeLocator::is_wine_installed() const
     {
-#if !defined(Q_OS_MACOS)
         if (runtime_is_proton() && is_managed_proton(settings().configured_runtime))
         {
             const QString umu = umu_path();
@@ -224,17 +210,10 @@ namespace soa::runtime
                          valid ? "usable" : "requires UMU 1.4.0 or newer");
             return valid;
         }
-#endif
         const QString program =
             runtime_is_proton() ? proton_binary() : resolved_executable(wine_binary());
         const QFileInfo info(program);
         bool valid = info.isFile() && info.isExecutable();
-#if defined(Q_OS_MACOS)
-        if (valid && macos::executable_requires_rosetta(program) && !macos::rosetta_is_available())
-        {
-            valid = false;
-        }
-#endif
         SPDLOG_DEBUG("runtime {}: {}", program.toStdString(), valid ? "usable" : "not executable");
         return valid;
     }

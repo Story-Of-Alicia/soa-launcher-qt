@@ -14,8 +14,6 @@ namespace soa::config
 
     QString Config::umu_binary() const { return d->values.value(QStringLiteral("umu_binary")).toString(); }
 
-    QString Config::rosetta_x87_path() const { return d->values.value(QStringLiteral("rosetta_x87_path")).toString(); }
-
     QString Config::wine_arch() const
     {
         const QString value = d->values.value(QStringLiteral("wine_arch")).toString();
@@ -28,26 +26,6 @@ namespace soa::config
 
     QString Config::wine_args() const { return d->values.value(QStringLiteral("wine_args")).toString(); }
 
-    QString Config::macos_compatibility_profile() const
-    {
-        const QString value = d->values.value(QStringLiteral("macos_compatibility_profile"))
-                                  .toString().trimmed().toLower();
-        return value == QStringLiteral("safe-display")
-            || value == QStringLiteral("low-graphics")
-            || value == QStringLiteral("gl-behind")
-            || value == QStringLiteral("audio-isolation")
-            ? value : QStringLiteral("default");
-    }
-
-    bool Config::macos_video_decoder_workaround() const
-    {
-#if defined(Q_OS_MACOS)
-        return d->values.value(QStringLiteral("macos_video_decoder_workaround")).toBool();
-#else
-        return false;
-#endif
-    }
-
     bool Config::diagnostics_enabled() const
     {
         return d->values.value(QStringLiteral("diagnostics_enabled")).toBool();
@@ -56,22 +34,14 @@ namespace soa::config
     QString Config::setup_runtime_preference() const
     {
         const QString value = d->values.value(QStringLiteral("setup_runtime_preference")).toString().toLower();
-#if defined(Q_OS_MACOS)
-        return value == QStringLiteral("wine") ? value : QStringLiteral("wine");
-#else
         return value == QStringLiteral("wine") || value == QStringLiteral("proton")
             ? value : QStringLiteral("proton");
-#endif
     }
 
     bool Config::runtime_is_proton() const
     {
-#if defined(Q_OS_MACOS)
-        return false;
-#else
         return soa::runtime::WineRegistry::identify(wine_binary())
             == soa::runtime::RuntimeType::Proton;
-#endif
     }
 
     QString Config::normalize_wine_prefix(const QString& path) const
@@ -79,11 +49,7 @@ namespace soa::config
         QString configured = path.trimmed();
         if (configured.isEmpty())
         {
-#if defined(Q_OS_MACOS)
-            configured = soa::runtime::macos::default_prefix_root();
-#else
             configured = soa::common::paths::default_prefix_root();
-#endif
         }
         return absolute_clean_path(configured);
     }
@@ -93,11 +59,7 @@ namespace soa::config
         QString configured = path.trimmed();
         if (configured.isEmpty())
         {
-#if defined(Q_OS_MACOS)
-            configured = soa::runtime::macos::default_prefix_root();
-#else
             configured = soa::common::paths::default_proton_compat_data_root();
-#endif
         }
         configured = absolute_clean_path(configured);
         if (QFileInfo(configured).fileName().compare(QStringLiteral("pfx"), Qt::CaseInsensitive) == 0)
@@ -142,9 +104,6 @@ namespace soa::config
 
     void Config::set_wine_binary(const QString& value)
     {
-#if defined(Q_OS_MACOS)
-        const QString normalized = value;
-#else
         QString normalized = value.trimmed();
         if (normalized.compare(QStringLiteral("managed://umu-proton"), Qt::CaseInsensitive) == 0)
             normalized = soa::runtime::managed_proton_identifier();
@@ -156,7 +115,6 @@ namespace soa::config
         }
         if (QFileInfo(normalized).isAbsolute())
             normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
-#endif
         if (wine_binary() == normalized)
             return;
 
@@ -193,9 +151,6 @@ namespace soa::config
 
     void Config::set_winetricks_binary(const QString& value)
     {
-#if defined(Q_OS_MACOS)
-        const QString normalized = value;
-#else
         QString normalized = value.trimmed();
         if (!normalized.isEmpty() && !QFileInfo(normalized).isAbsolute())
         {
@@ -205,16 +160,12 @@ namespace soa::config
         }
         if (QFileInfo(normalized).isAbsolute())
             normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
-#endif
         if (winetricks_binary() == normalized) return;
         d->values[QStringLiteral("winetricks_binary")] = normalized; persist_change();
     }
 
     void Config::set_umu_binary(const QString& value)
     {
-#if defined(Q_OS_MACOS)
-        const QString normalized = value.trimmed();
-#else
         QString normalized = value.trimmed();
         if (!normalized.isEmpty() && !QFileInfo(normalized).isAbsolute())
         {
@@ -224,37 +175,20 @@ namespace soa::config
         }
         if (QFileInfo(normalized).isAbsolute())
             normalized = QDir::cleanPath(QFileInfo(normalized).absoluteFilePath());
-#endif
         if (umu_binary() == normalized) return;
         d->values[QStringLiteral("umu_binary")] = normalized; persist_change();
     }
 
-    void Config::set_rosetta_x87_path(const QString& value)
-    {
-        if (rosetta_x87_path() == value) return;
-        d->values[QStringLiteral("rosetta_x87_path")] = value; persist_change();
-    }
-
     void Config::set_wine_arch(const QString& value)
     {
-#if defined(Q_OS_MACOS)
-        Q_UNUSED(value);
-        const QString normalized = QStringLiteral("win64");
-#else
         const QString normalized = value.trimmed().toLower() == QStringLiteral("win32") ? QStringLiteral("win32") : QStringLiteral("win64");
-#endif
         if (wine_arch() == normalized) return;
         d->values[QStringLiteral("wine_arch")] = normalized; persist_change();
     }
 
     void Config::set_use_dxvk(const bool value)
     {
-#if defined(Q_OS_MACOS)
-        const bool normalized = false;
-        Q_UNUSED(value);
-#else
         const bool normalized = value;
-#endif
         if (use_dxvk() == normalized) return;
         d->values[QStringLiteral("use_dxvk")] = normalized; persist_change();
     }
@@ -272,31 +206,6 @@ namespace soa::config
         d->values[QStringLiteral("wine_args")] = normalized; persist_change();
     }
 
-    void Config::set_macos_compatibility_profile(const QString& value)
-    {
-        const QString candidate = value.trimmed().toLower();
-        const QString normalized = candidate == QStringLiteral("safe-display")
-            || candidate == QStringLiteral("low-graphics")
-            || candidate == QStringLiteral("gl-behind")
-            || candidate == QStringLiteral("audio-isolation")
-            ? candidate : QStringLiteral("default");
-        if (macos_compatibility_profile() == normalized) return;
-        d->values[QStringLiteral("macos_compatibility_profile")] = normalized;
-        persist_change();
-    }
-
-    void Config::set_macos_video_decoder_workaround(const bool value)
-    {
-#if defined(Q_OS_MACOS)
-        if (macos_video_decoder_workaround() == value)
-            return;
-        d->values[QStringLiteral("macos_video_decoder_workaround")] = value;
-        persist_change();
-#else
-        Q_UNUSED(value);
-#endif
-    }
-
     void Config::set_diagnostics_enabled(const bool value)
     {
         if (diagnostics_enabled() == value)
@@ -307,13 +216,8 @@ namespace soa::config
 
     void Config::set_setup_runtime_preference(const QString& value)
     {
-#if defined(Q_OS_MACOS)
-        const QString normalized = value == QStringLiteral("wine")
-            ? value : QStringLiteral("wine");
-#else
         const QString normalized = value == QStringLiteral("wine") || value == QStringLiteral("proton")
             ? value : QStringLiteral("proton");
-#endif
         if (setup_runtime_preference() == normalized)
             return;
         d->values[QStringLiteral("setup_runtime_preference")] = normalized;

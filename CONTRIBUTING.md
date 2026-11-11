@@ -9,7 +9,7 @@ If you're new to the codebase, start by reading [Launcher Architecture](https://
 
 ## Build And Test
 
-Read [Building on Linux](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-Linux) or [Building on macOS](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-macOS).
+Read [Building on Linux](https://github.com/Story-Of-Alicia/soa-launcher-qt/wiki/Building-on-Linux)
 
 ## Translations
 
@@ -27,7 +27,7 @@ These are the things a reviewer will ask you to change.
 
 - Keep each pull request to one change or feature, and make sure the tests pass on the platform you changed.
 - For UI changes, check every window size and how the assets look.
-- For Wine/Proton or macOS changes, say what runtime and Mac you tested on.
+- For Wine/Proton, say what runtime and distro you tested on.
 - Don't commit build folders, packages, credentials or local config.
 
 ## Code Style

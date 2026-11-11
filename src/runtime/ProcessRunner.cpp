@@ -12,8 +12,6 @@
 #include <QTimer>
 
 #include <utility>
-
-#include "runtime/MacWineRuntime.hpp"
 #include <spdlog/spdlog.h>
 
 namespace soa::runtime
@@ -240,18 +238,6 @@ namespace soa::runtime
         const QString runtime_executable = executable;
         launch_arguments = arguments;
         launch_environment = environment;
-#if defined(Q_OS_MACOS)
-        if (macos::executable_requires_rosetta(runtime_executable) &&
-            !macos::rosetta_is_available())
-        {
-            SPDLOG_ERROR("Rosetta is required to launch {}", runtime_executable.toStdString());
-            return false;
-        }
-        macos::apply_runtime_environment(launch_environment, runtime_executable);
-        executable = macos::prepare_host_launch(runtime_executable, launch_arguments);
-        if (executable.isEmpty())
-            return false;
-#endif
         return true;
     }
 
@@ -272,16 +258,6 @@ namespace soa::runtime
         {
             return false;
         }
-
-#if defined(Q_OS_MACOS)
-        if (request.prevent_system_sleep &&
-            QFileInfo(QStringLiteral("/usr/bin/caffeinate")).isExecutable())
-        {
-            launch_arguments.prepend(executable);
-            launch_arguments.prepend(QStringLiteral("-dimsu"));
-            executable = QStringLiteral("/usr/bin/caffeinate");
-        }
-#endif
 
         request_ = std::move(request);
         completion_ = std::move(completion);

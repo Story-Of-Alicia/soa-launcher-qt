@@ -151,7 +151,6 @@ void WineInstall::start_install()
         return;
     }
 
-#if !defined(Q_OS_MACOS)
     const QString wine_path = Config::instance().wine_binary();
     const soa::runtime::RuntimeType type = soa::runtime::WineRegistry::identify(wine_path);
 
@@ -171,7 +170,7 @@ void WineInstall::start_install()
         update();
         return;
     }
-#endif
+
     warn_message.clear();
 
     set_installing(true);

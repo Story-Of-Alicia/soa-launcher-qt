@@ -10,13 +10,9 @@ namespace soa::config
 {
     void Config::normalize_schema()
     {
-#if defined(Q_OS_MACOS)
-        d->values[QStringLiteral("wine_arch")] = QStringLiteral("win64");
-#else
         const QString arch = d->values.value(QStringLiteral("wine_arch")).toString().toLower();
         d->values[QStringLiteral("wine_arch")] = arch == QStringLiteral("win32")
             ? QStringLiteral("win32") : QStringLiteral("win64");
-#endif
         d->values[QStringLiteral("after_game_start")] = normalized_after_launch(
             d->values.value(QStringLiteral("after_game_start")).toString());
         d->values[QStringLiteral("launcher_size")] = normalized_launcher_size(
@@ -29,10 +25,6 @@ namespace soa::config
             d->values.value(QStringLiteral("wine_args")).toString());
         d->values[QStringLiteral("game_args")] = bounded_arguments(
             d->values.value(QStringLiteral("game_args")).toString());
-#if defined(Q_OS_MACOS)
-        d->values[QStringLiteral("umu_binary")] =
-            d->values.value(QStringLiteral("umu_binary")).toString().trimmed();
-#else
         auto normalize_executable = [](const QString& value)
         {
             const QString trimmed = value.trimmed();
@@ -59,17 +51,10 @@ namespace soa::config
             d->values.value(QStringLiteral("winetricks_binary")).toString());
         d->values[QStringLiteral("umu_binary")] = normalize_executable(
             d->values.value(QStringLiteral("umu_binary")).toString());
-#endif
         d->values[QStringLiteral("use_dxvk")] =
             d->values.value(QStringLiteral("use_dxvk")).toBool();
         d->values[QStringLiteral("runtime_selected")] =
             d->values.value(QStringLiteral("runtime_selected")).toBool();
-#if defined(Q_OS_MACOS)
-        d->values[QStringLiteral("macos_video_decoder_workaround")] =
-            d->values.value(QStringLiteral("macos_video_decoder_workaround")).toBool();
-#else
-        d->values.remove(QStringLiteral("macos_video_decoder_workaround"));
-#endif
         d->values[QStringLiteral("diagnostics_enabled")] =
             d->values.value(QStringLiteral("diagnostics_enabled")).toBool();
         d->values[QStringLiteral("prerequisites_confirmed")] =
@@ -83,34 +68,18 @@ namespace soa::config
         d->values[QStringLiteral("setup_assistant_version")] =
             qMax(0, d->values.value(QStringLiteral("setup_assistant_version")).toInt());
 
-        const QString profile =
-            d->values.value(QStringLiteral("macos_compatibility_profile"))
-                .toString().trimmed().toLower();
-        d->values[QStringLiteral("macos_compatibility_profile")] =
-            profile == QStringLiteral("safe-display")
-                || profile == QStringLiteral("low-graphics")
-                || profile == QStringLiteral("gl-behind")
-            ? profile : QStringLiteral("default");
-
         d->values[QStringLiteral("game_version")] =
             soa::common::game::to_string(soa::common::game::game_version_from_string(
                 d->values.value(QStringLiteral("game_version")).toString()));
         const QString preference = d->values.value(QStringLiteral("setup_runtime_preference")).toString().toLower();
-#if defined(Q_OS_MACOS)
-        d->values[QStringLiteral("setup_runtime_preference")] = QStringLiteral("wine");
-#else
         d->values[QStringLiteral("setup_runtime_preference")] =
             preference == QStringLiteral("wine") || preference == QStringLiteral("proton")
                 ? preference : QStringLiteral("proton");
-#endif
     }
 
     void Config::probe_system_paths()
     {
         QStringList extraDirectories;
-#ifdef Q_OS_MACOS
-        extraDirectories << QStringLiteral("/opt/homebrew/bin") << QStringLiteral("/usr/local/bin");
-#endif
         auto probe = [this, &extraDirectories](const QString& key, const QString& executable)
         {
             if (!d->values.value(key).toString().isEmpty())
@@ -126,7 +95,6 @@ namespace soa::config
         if (d->values.value(QStringLiteral("wine_binary")).toString().isEmpty())
             probe(QStringLiteral("wine_binary"), QStringLiteral("wine64"));
         probe(QStringLiteral("winetricks_binary"), QStringLiteral("winetricks"));
-#if !defined(Q_OS_MACOS)
         probe(QStringLiteral("umu_binary"), QStringLiteral("umu-run"));
         if (d->values.value(QStringLiteral("umu_binary")).toString().isEmpty())
         {
@@ -134,7 +102,6 @@ namespace soa::config
             if (QFileInfo(local).isExecutable())
                 d->values[QStringLiteral("umu_binary")] = local;
         }
-#endif
     }
 
     void Config::apply_defaults()
@@ -146,13 +113,8 @@ namespace soa::config
                 d->values[key] = value;
         };
 
-#if defined(Q_OS_MACOS)
-        const QString defaultPrefix = soa::runtime::macos::default_prefix_root();
-        const QString defaultProtonCompat = defaultPrefix;
-#else
         const QString defaultPrefix = soa::common::paths::default_prefix_root();
         const QString defaultProtonCompat = soa::common::paths::default_proton_compat_data_root();
-#endif
         const QString oldDefault = QDir(QDir::homePath()).filePath(QStringLiteral("soa-launcher"));
         const bool hadProtonRoot = d->values.contains(QStringLiteral("proton_compat_data_root"));
         const bool hadLanguagePreference = d->values.contains(QStringLiteral("language"));
@@ -161,13 +123,11 @@ namespace soa::config
         if (!hadProtonRoot && runtime_is_proton())
         {
             QString migratedProtonRoot = normalize_proton_compat_root(legacyPrefix);
-#if !defined(Q_OS_MACOS)
             if (absolute_clean_path(legacyPrefix) == absolute_clean_path(oldDefault)
                 && !QDir(oldDefault).exists())
             {
                 migratedProtonRoot = defaultProtonCompat;
             }
-#endif
             d->values[QStringLiteral("proton_compat_data_root")] = migratedProtonRoot;
             d->values[QStringLiteral("wine_prefix")] = defaultPrefix;
         }
@@ -184,26 +144,10 @@ namespace soa::config
         setIfMissing(QStringLiteral("use_dxvk"), false);
         setIfMissing(QStringLiteral("runtime_selected"), false);
         setIfMissing(QStringLiteral("wine_args"), QString());
-        setIfMissing(QStringLiteral("macos_compatibility_profile"), QStringLiteral("default"));
-#if defined(Q_OS_MACOS)
-        setIfMissing(QStringLiteral("macos_video_decoder_workaround"), false);
-#endif
-        if (!d->values.contains(QStringLiteral("diagnostics_enabled")) &&
-            d->values.contains(QStringLiteral("macos_deep_diagnostics")))
-        {
-            d->values[QStringLiteral("diagnostics_enabled")] =
-                d->values.value(QStringLiteral("macos_deep_diagnostics")).toBool();
-        }
         setIfMissing(QStringLiteral("diagnostics_enabled"), false);
-        d->values.remove(QStringLiteral("macos_deep_diagnostics"));
-        setIfMissing(QStringLiteral("rosetta_x87_path"), QString());
         setIfMissing(QStringLiteral("prerequisites_confirmed"), false);
         setIfMissing(QStringLiteral("setup_assistant_version"), 0);
-#if defined(Q_OS_MACOS)
-        setIfMissing(QStringLiteral("setup_runtime_preference"), QStringLiteral("wine"));
-#else
         setIfMissing(QStringLiteral("setup_runtime_preference"), QStringLiteral("proton"));
-#endif
         setIfMissing(QStringLiteral("rules_accepted"), false);
         setIfMissing(QStringLiteral("keep_signed_in"), false);
         setIfMissing(QStringLiteral("launch_on_startup"), false);
@@ -220,40 +164,11 @@ namespace soa::config
         d->values.remove(QStringLiteral("game_install_path"));
         d->values.remove(QStringLiteral("game_id"));
         d->values.remove(QStringLiteral("setup_pc_age"));
+        d->values.remove(QStringLiteral("macos_compatibility_profile"));
+        d->values.remove(QStringLiteral("macos_video_decoder_workaround"));
+        d->values.remove(QStringLiteral("macos_deep_diagnostics"));
+        d->values.remove(QStringLiteral("rosetta_x87_path"));
 
-#if defined(Q_OS_MACOS)
-        const QString storedPrefix = absolute_clean_path(
-            d->values.value(QStringLiteral("wine_prefix")).toString());
-        if (storedPrefix == absolute_clean_path(oldDefault) && !QDir(oldDefault).exists())
-            d->values[QStringLiteral("wine_prefix")] = defaultPrefix;
-        d->values[QStringLiteral("wine_arch")] = QStringLiteral("win64");
-        d->values[QStringLiteral("use_dxvk")] = false;
-        const bool hadLinuxProtonPreference =
-            d->values.value(QStringLiteral("setup_runtime_preference")).toString()
-                == QStringLiteral("proton");
-        if (hadLinuxProtonPreference)
-        {
-            SPDLOG_INFO("config: clearing Linux Proton selection on macOS");
-            d->values[QStringLiteral("wine_binary")] = QString();
-            d->values[QStringLiteral("runtime_selected")] = false;
-        }
-        d->values[QStringLiteral("setup_runtime_preference")] = QStringLiteral("wine");
-        if (soa::runtime::WineRegistry::identify(
-                d->values.value(QStringLiteral("wine_binary")).toString())
-            == soa::runtime::RuntimeType::Proton)
-        {
-            SPDLOG_INFO("config: clearing Linux Proton selection on macOS");
-            d->values[QStringLiteral("wine_binary")] = QString();
-            d->values[QStringLiteral("runtime_selected")] = false;
-        }
-        if (d->values.value(QStringLiteral("wine_binary")).toString().trimmed()
-                .startsWith(QStringLiteral("managed://"), Qt::CaseInsensitive))
-        {
-            SPDLOG_INFO("config: clearing Linux managed runtime selection on macOS");
-            d->values[QStringLiteral("wine_binary")] = QString();
-            d->values[QStringLiteral("runtime_selected")] = false;
-        }
-#else
         const QString storedPrefix = absolute_clean_path(
             d->values.value(QStringLiteral("wine_prefix")).toString());
         if (storedPrefix == absolute_clean_path(oldDefault) && !QDir(oldDefault).exists())
@@ -271,7 +186,7 @@ namespace soa::config
                         oldDefault.toStdString(), defaultProtonCompat.toStdString());
             d->values[QStringLiteral("proton_compat_data_root")] = defaultProtonCompat;
         }
-#endif
+
         d->values[QStringLiteral("wine_prefix")] = normalize_wine_prefix(
             d->values.value(QStringLiteral("wine_prefix")).toString());
         d->values[QStringLiteral("proton_compat_data_root")] = normalize_proton_compat_root(

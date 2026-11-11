@@ -11,7 +11,6 @@
 
 #include <utility>
 
-#include "runtime/MacWineRuntime.hpp"
 #include "runtime/PrefixInspector.hpp"
 #include "runtime/RuntimeLocator.hpp"
 #include "runtime/WineRegistry.hpp"
@@ -78,13 +77,9 @@ namespace soa::runtime
     bool PrefixSetupJob::queue_missing_components()
     {
         const QStringList packages = missing_component_packages();
-#if defined(Q_OS_MACOS)
-        const bool install_optional_dxvk = false;
-#else
         const bool install_optional_dxvk =
             Config::instance().use_dxvk() && !runtime_.runtime_is_proton() &&
             !PrefixInspector::dxvk_installed(Config::instance().prefix_root());
-#endif
         if (packages.isEmpty() && !install_optional_dxvk)
             return true;
 
@@ -374,7 +369,6 @@ namespace soa::runtime
         if (!active_)
             return;
 
-#if !defined(Q_OS_MACOS)
         if (completed_kind == Kind::Setup && runtime_.runtime_is_proton()
             && is_managed_proton(Config::instance().wine_binary()))
         {
@@ -385,7 +379,6 @@ namespace soa::runtime
                 Config::instance().set_wine_binary(resolved);
             }
         }
-#endif
 
         const QString runtime_identity = runtime_.runtime_is_proton()
                                              ? Config::instance().wine_binary()
@@ -485,21 +478,7 @@ namespace soa::runtime
                          inspection.physx_runtime, inspection.d3dx9_43, inspection.msvc_runtime,
                          inspection.dxvk_files_present, inspection.dxvk_overrides_present,
                          inspection.dxvk_installed);
-#if defined(Q_OS_MACOS)
-            if (!inspection.exists || !inspection.structure_valid ||
-                inspection.architecture == PrefixArchitecture::Win32)
-            {
-                finish_failure(QStringLiteral("Prefix setup finished, but the Wine prefix "
-                                              "structure is incomplete or "
-                                              "incompatible."));
-            }
-            else
-            {
-                finish_failure(QStringLiteral("Prefix setup finished, but Alicia's "
-                                              "required DirectX or VC++ components are "
-                                              "still missing."));
-            }
-#else
+
             if (completed_kind == Kind::Dxvk)
             {
                 finish_optional_dxvk_failure(
@@ -512,7 +491,6 @@ namespace soa::runtime
                 finish_failure(QStringLiteral("Prefix setup finished, but required "
                                               "components are still missing."));
             }
-#endif
             return;
         }
 
@@ -546,37 +524,6 @@ namespace soa::runtime
     {
         if (!ensure_idle())
             return;
-#if defined(Q_OS_MACOS)
-        const QString configured_runtime = Config::instance().wine_binary();
-        const QString runtime_executable = macos::resolve_wine_executable(configured_runtime);
-        if (runtime_executable.isEmpty() || !QFileInfo(runtime_executable).isExecutable())
-        {
-            if (callbacks_.fail_user)
-            {
-                callbacks_.fail_user(QStringLiteral("Wine Not Available"),
-                                     QStringLiteral("No executable Wine entry point was "
-                                                    "found in the selected app or folder."));
-            }
-            if (callbacks_.setup_finished)
-                callbacks_.setup_finished(false);
-            return;
-        }
-        if (macos::executable_requires_rosetta(runtime_executable) &&
-            !macos::rosetta_is_available())
-        {
-            if (callbacks_.fail_user)
-            {
-                callbacks_.fail_user(QStringLiteral("Rosetta Required"),
-                                     QStringLiteral("The selected Wine installation is Intel-only. "
-                                                    "Request Rosetta in the Wine "
-                                                    "chooser, complete the macOS prompt, "
-                                                    "then retry."));
-            }
-            if (callbacks_.setup_finished)
-                callbacks_.setup_finished(false);
-            return;
-        }
-#else
         if (!runtime_.is_wine_installed())
         {
             if (callbacks_.fail_user)
@@ -589,19 +536,12 @@ namespace soa::runtime
                 callbacks_.setup_finished(false);
             return;
         }
-#endif
 
         const QString prefix = Config::instance().prefix_root();
         if (prefix.isEmpty() || !QDir().mkpath(prefix))
         {
-#if defined(Q_OS_MACOS)
-            const QString prefix_message =
-                QStringLiteral("The Wine prefix directory could not be "
-                               "created.");
-#else
             const QString prefix_message = QStringLiteral("The Wine prefix directory could not be "
                                                           "created.");
-#endif
             if (callbacks_.fail_user)
             {
                 callbacks_.fail_user(QStringLiteral("Invalid Prefix"), prefix_message);
@@ -613,23 +553,14 @@ namespace soa::runtime
 
         QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("WINEPREFIX"), prefix);
-#if defined(Q_OS_MACOS)
-        environment.insert(QStringLiteral("WINEARCH"), QStringLiteral("win64"));
-#else
         environment.insert(QStringLiteral("WINEARCH"), Config::instance().wine_arch());
-#endif
         environment.insert(QStringLiteral("WINE"),
                            runtime_.resolved_executable(runtime_.wine_binary()));
         runtime_.apply_wine_environment(environment);
 
         QVector<SetupCommand> commands;
-#if defined(Q_OS_MACOS)
-        const QString validate_runtime_message = QStringLiteral("Validating Wine...");
-        const QString create_prefix_message = QStringLiteral("Creating Wine prefix...");
-#else
         const QString validate_runtime_message = QStringLiteral("Validating Wine runtime...");
         const QString create_prefix_message = QStringLiteral("Creating Wine prefix...");
-#endif
         commands.push_back({validate_runtime_message,
                             runtime_.wine_binary(),
                             {QStringLiteral("--version")},
@@ -649,45 +580,6 @@ namespace soa::runtime
         wineboot_arguments << QStringLiteral("--init");
         commands.push_back({create_prefix_message, wineboot, wineboot_arguments, environment,
                             5 * 60 * 1000, true, true, false});
-
-#if defined(Q_OS_MACOS)
-        const QString d3d_key = QStringLiteral("HKCU\\Software\\Wine\\Direct3D");
-        commands.push_back({QStringLiteral("Clearing stale graphics overrides..."),
-                            runtime_.wine_binary(),
-                            {QStringLiteral("cmd.exe"), QStringLiteral("/d"), QStringLiteral("/s"),
-                             QStringLiteral("/c"),
-                             QStringLiteral("reg.exe delete \"%1\" /v renderer /f "
-                                            ">nul 2>&1 & exit /b 0")
-                                 .arg(d3d_key)},
-                            environment,
-                            k_registry_timeout_ms,
-                            false,
-                            true,
-                            false});
-        commands.push_back({QStringLiteral("Configuring the built-in graphics "
-                                           "framebuffer..."),
-                            runtime_.wine_binary(),
-                            {QStringLiteral("reg.exe"), QStringLiteral("add"), d3d_key,
-                             QStringLiteral("/v"), QStringLiteral("OffscreenRenderingMode"),
-                             QStringLiteral("/t"), QStringLiteral("REG_SZ"), QStringLiteral("/d"),
-                             QStringLiteral("fbo"), QStringLiteral("/f")},
-                            environment,
-                            k_registry_timeout_ms,
-                            false,
-                            true,
-                            false});
-        commands.push_back(
-            {QStringLiteral("Configuring graphics memory..."),
-             runtime_.wine_binary(),
-             {QStringLiteral("reg.exe"), QStringLiteral("add"), d3d_key, QStringLiteral("/v"),
-              QStringLiteral("VideoMemorySize"), QStringLiteral("/t"), QStringLiteral("REG_SZ"),
-              QStringLiteral("/d"), QStringLiteral("4096"), QStringLiteral("/f")},
-             environment,
-             k_registry_timeout_ms,
-             false,
-             true,
-             false});
-#endif
         run_setup(std::move(commands), Kind::Setup);
     }
 
@@ -695,7 +587,6 @@ namespace soa::runtime
     {
         if (!ensure_idle())
             return;
-#if !defined(Q_OS_MACOS)
         if (is_managed_proton(Config::instance().wine_binary())
             && !umu_supports_managed_folders())
         {
@@ -710,7 +601,6 @@ namespace soa::runtime
                 callbacks_.setup_finished(false);
             return;
         }
-#endif
         if (!runtime_.is_wine_installed())
         {
             if (callbacks_.fail_user)
@@ -776,17 +666,6 @@ namespace soa::runtime
     {
         if (!ensure_idle())
             return;
-#if defined(Q_OS_MACOS)
-        Config::instance().set_use_dxvk(false);
-        if (callbacks_.user_notice)
-        {
-            callbacks_.user_notice(QStringLiteral("macOS uses Wine's built-in Direct3D "
-                                                  "9 backend in this version. DXVK is "
-                                                  "intentionally unavailable until a tested "
-                                                  "Metal/Vulkan path exists."));
-        }
-        return;
-#endif
         if (!Config::instance().use_dxvk())
         {
             if (callbacks_.user_notice)

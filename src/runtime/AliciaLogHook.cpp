@@ -29,12 +29,8 @@ namespace soa::runtime
 
             const QDir application(QCoreApplication::applicationDirPath());
             candidates.append(application.filePath(QStringLiteral("alicia-log-hook")));
-#if defined(Q_OS_MACOS)
-            candidates.append(application.filePath(QStringLiteral("../Resources/alicia-log-hook")));
-#else
             candidates.append(
                 application.filePath(QStringLiteral("../libexec/soa-launcher/alicia-log-hook")));
-#endif
 
             for (const QString& candidate : candidates)
             {
@@ -126,24 +122,6 @@ namespace soa::runtime
             QDir(stage_directory).filePath(QString::fromLatin1(k_injector));
         const QString staged_hook =
             QDir(stage_directory).filePath(QString::fromLatin1(k_hook));
-
-        const QString source_audio_host =
-            QDir(packaged_directory).filePath(QStringLiteral("soa-audio-host"));
-        if (QFileInfo(source_audio_host).isFile())
-        {
-            const QString staged_audio_host =
-                QDir(stage_directory).filePath(QStringLiteral("soa-audio-host"));
-            QString ignored;
-            if (refresh_file(source_audio_host, staged_audio_host, ignored))
-            {
-                QFile::setPermissions(staged_audio_host,
-                                      QFile::permissions(staged_audio_host) |
-                                          QFileDevice::ExeOwner |
-                                          QFileDevice::ExeGroup |
-                                          QFileDevice::ExeOther);
-                result.audio_host_host_path = staged_audio_host;
-            }
-        }
 
         if (!refresh_file(source_injector, result.injector_host_path, result.failure) ||
             !refresh_file(source_hook, staged_hook, result.failure))
